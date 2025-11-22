@@ -11,7 +11,7 @@
         /* Global Styles */
         body {
             font-family: 'Roboto', sans-serif;
-            background-color: #f0f0f0; /* Very light background */
+            background-color: #f0f0f0; 
             display: flex;
             justify-content: center;
             align-items: center;
@@ -100,7 +100,7 @@
 
         /* Button Styles */
         .button {
-            background-color: #5c7cfa; /* Main button color (Blue) */
+            background-color: #5c7cfa; 
             color: #ffffff;
             border: none;
             padding: 12px 20px;
@@ -115,17 +115,17 @@
         }
 
         .button.submit-btn {
-            background-color: #1abc9c; /* Submit color (Green) */
+            background-color: #1abc9c; 
             flex: 1;
         }
         
         .button.next-btn {
-            background-color: #95a5a6; /* Next/Change color (Grey) */
+            background-color: #95a5a6; 
             flex: 1;
         }
 
         .button.voice-btn {
-            background-color: #333333; /* Darker button for microphone */
+            background-color: #333333; 
             flex: 0 0 50px; 
             padding: 12px;
             border-radius: 50%;
@@ -187,7 +187,7 @@
                 
                 <div class="button-group">
                     <button id="submit-btn" class="button submit-btn">Submit</button>
-                    <button id="generate-btn" class="button next-btn">换一个 (Change)</button>
+                    <button id="generate-btn" class="button next-btn">Draw New</button>
                 </div>
                 
                 <button id="voice-btn" class="button voice-btn" title="Voice Input (Requires browser support)">
@@ -283,28 +283,21 @@
             
             if (answer.length === 0) {
                 submissionMessage.textContent = "Please type an answer before submitting!";
-                submissionMessage.style.color = '#e74c3c'; // Red
+                submissionMessage.style.color = '#e74c3c'; 
                 return;
             }
             
-            // --- ACTUAL SUBMISSION LOGIC WOULD GO HERE ---
-            // Since this is a static HTML file, true submission (saving the data) 
-            // requires a backend server or a service like Google Forms/Airtable integration,
-            // which cannot be done with pure frontend code.
-            
-            // For now, we simulate success and provide instructions:
+            // --- SIMULATED SUBMISSION LOGIC ---
+            // True submission requires a backend service (e.g., Google Forms/Airtable).
+            // This simulation provides user feedback.
             
             const message = `🎉 Success! Your answer has been noted. Now go share this with your friend!`;
             submissionMessage.textContent = message;
-            submissionMessage.style.color = '#1abc9c'; // Green
+            submissionMessage.style.color = '#1abc9c'; 
             
-            // Example of what the data would look like:
             console.log("--- Submission Data ---");
             console.log("Question:", currentQuestion);
             console.log("Answer:", answer);
-            
-            // Optionally clear the answer after successful "submission"
-            // answerInput.value = '';
         }
 
 
@@ -319,7 +312,7 @@
             }
 
             const recognition = new SpeechRecognition();
-            recognition.lang = 'en-US'; // Adjust this to 'zh-CN' if primarily speaking Chinese
+            recognition.lang = 'en-US'; 
             recognition.continuous = false; 
             recognition.interimResults = false; 
             
@@ -351,9 +344,6 @@
             changeCard();
         };
 
-        // Button changes: 
-        // 1. Next button changed to '换一个' (Change It)
-        // 2. New 'Submit' button added
         generateBtn.addEventListener('click', changeCard);
         submitBtn.addEventListener('click', handleSubmit);
         voiceBtn.addEventListener('click', startVoiceRecognition);
