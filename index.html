@@ -30,13 +30,6 @@
             text-align: center;
         }
 
-        .title {
-            color: #333333;
-            font-weight: 700;
-            margin-bottom: 20px;
-            font-size: 1.8rem;
-        }
-
         /* Question Card Styles */
         .card-area {
             min-height: 200px;
@@ -47,11 +40,11 @@
         }
 
         .question-card {
-            background-color: #ffffff; /* Clean white card */
-            color: #333333; /* Dark text */
+            background-color: #ffffff; 
+            color: #333333; 
             border-radius: 12px;
             padding: 25px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); /* Soft shadow */
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); 
             width: 100%;
             min-height: 150px;
             display: flex;
@@ -60,7 +53,7 @@
             transition: transform 0.5s ease-out, opacity 0.5s ease-out; 
             transform: scale(1);
             opacity: 1;
-            border: 1px solid #eeeeee; /* subtle border */
+            border: 1px solid #eeeeee; 
         }
 
         .question-card.exit {
@@ -90,18 +83,23 @@
             font-family: inherit;
             resize: vertical;
             font-size: 1rem;
-            margin-bottom: 10px;
+            margin-bottom: 15px;
         }
         
         .action-bar {
             display: flex;
             gap: 10px;
-            margin-top: 10px;
+            margin-bottom: 10px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex: 1;
         }
 
         /* Button Styles */
         .button {
-            flex: 1;
             background-color: #5c7cfa; /* Main button color (Blue) */
             color: #ffffff;
             border: none;
@@ -116,6 +114,16 @@
             justify-content: center;
         }
 
+        .button.submit-btn {
+            background-color: #1abc9c; /* Submit color (Green) */
+            flex: 1;
+        }
+        
+        .button.next-btn {
+            background-color: #95a5a6; /* Next/Change color (Grey) */
+            flex: 1;
+        }
+
         .button.voice-btn {
             background-color: #333333; /* Darker button for microphone */
             flex: 0 0 50px; 
@@ -123,10 +131,14 @@
             border-radius: 50%;
         }
         
-        .button:hover {
-            background-color: #4a6ce0;
+        .button.submit-btn:hover {
+            background-color: #16a085;
         }
         
+        .button.next-btn:hover {
+            background-color: #7f8c8d;
+        }
+
         .button.voice-btn:hover {
             background-color: #000000;
         }
@@ -145,6 +157,13 @@
             stroke-linecap: round;
             stroke-linejoin: round;
         }
+        
+        #submission-message {
+            margin-top: 15px;
+            font-weight: 700;
+            color: #1abc9c;
+            min-height: 20px;
+        }
 
         .footer {
             margin-top: 25px;
@@ -156,6 +175,7 @@
 <body>
 
     <div class="container">
+        
         <div id="card-area" class="card-area">
             </div>
 
@@ -164,7 +184,11 @@
             <textarea id="answer-input" placeholder="Type your answer here..."></textarea>
             
             <div class="action-bar">
-                <button id="generate-btn" class="button">Next Question</button>
+                
+                <div class="button-group">
+                    <button id="submit-btn" class="button submit-btn">Submit</button>
+                    <button id="generate-btn" class="button next-btn">换一个 (Change)</button>
+                </div>
                 
                 <button id="voice-btn" class="button voice-btn" title="Voice Input (Requires browser support)">
                     <svg class="mic-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
@@ -176,6 +200,8 @@
                 </button>
             </div>
         </div>
+        
+        <div id="submission-message"></div>
         
         <p class="footer">💡 A prompt to encourage connecting with a faraway friend.</p>
     </div>
@@ -200,14 +226,15 @@
 
         const cardArea = document.getElementById('card-area');
         const generateBtn = document.getElementById('generate-btn');
+        const submitBtn = document.getElementById('submit-btn');
         const voiceBtn = document.getElementById('voice-btn');
         const answerInput = document.getElementById('answer-input');
+        const submissionMessage = document.getElementById('submission-message');
 
         let currentQuestionIndex = -1; 
 
-        /**
-         * Selects a random question, ensuring it's different from the current one.
-         */
+        // --- Core Functions ---
+
         function getRandomQuestion() {
             let newIndex;
             if (questions.length > 1) {
@@ -221,35 +248,26 @@
             return questions[newIndex];
         }
 
-        /**
-         * Generates and displays the new question card.
-         */
         function displayNewCard() {
             const questionText = getRandomQuestion();
             
-            // 1. Create the new card element
             const newCard = document.createElement('div');
             newCard.classList.add('question-card');
             newCard.innerHTML = `<p>${questionText}</p>`;
             
-            // 2. Append the new card
             cardArea.appendChild(newCard);
             
-            // 3. Clear the answer box
+            // Clear state
             answerInput.value = '';
+            submissionMessage.textContent = '';
         }
 
-        /**
-         * Removes the old card with animation and displays the new card.
-         */
         function changeCard() {
             const oldCard = cardArea.querySelector('.question-card');
             
             if (oldCard) {
-                // Step 1: Add exit animation class
                 oldCard.classList.add('exit');
                 
-                // Step 2: Wait for animation to finish (0.5s) then remove and display new card
                 setTimeout(() => {
                     oldCard.remove();
                     displayNewCard();
@@ -258,6 +276,37 @@
                 displayNewCard();
             }
         }
+        
+        function handleSubmit() {
+            const answer = answerInput.value.trim();
+            const currentQuestion = cardArea.querySelector('p').textContent;
+            
+            if (answer.length === 0) {
+                submissionMessage.textContent = "Please type an answer before submitting!";
+                submissionMessage.style.color = '#e74c3c'; // Red
+                return;
+            }
+            
+            // --- ACTUAL SUBMISSION LOGIC WOULD GO HERE ---
+            // Since this is a static HTML file, true submission (saving the data) 
+            // requires a backend server or a service like Google Forms/Airtable integration,
+            // which cannot be done with pure frontend code.
+            
+            // For now, we simulate success and provide instructions:
+            
+            const message = `🎉 Success! Your answer has been noted. Now go share this with your friend!`;
+            submissionMessage.textContent = message;
+            submissionMessage.style.color = '#1abc9c'; // Green
+            
+            // Example of what the data would look like:
+            console.log("--- Submission Data ---");
+            console.log("Question:", currentQuestion);
+            console.log("Answer:", answer);
+            
+            // Optionally clear the answer after successful "submission"
+            // answerInput.value = '';
+        }
+
 
         // --- Web Speech API (Voice Recognition) Implementation ---
         
@@ -270,19 +319,16 @@
             }
 
             const recognition = new SpeechRecognition();
-            // Setting recognition language to English (you can change this to 'zh-CN' if preferred)
-            recognition.lang = 'en-US'; 
+            recognition.lang = 'en-US'; // Adjust this to 'zh-CN' if primarily speaking Chinese
             recognition.continuous = false; 
             recognition.interimResults = false; 
             
-            // Start recognition
             voiceBtn.innerHTML = '🎙️ Listening...';
             voiceBtn.disabled = true;
             recognition.start();
 
             recognition.onresult = (event) => {
                 const transcript = event.results[0][0].transcript;
-                // Append the result to the input box
                 answerInput.value += transcript; 
             };
 
@@ -300,12 +346,16 @@
             };
         }
 
-        // Event Listeners
+        // --- Event Listeners ---
         window.onload = function() {
             changeCard();
         };
 
+        // Button changes: 
+        // 1. Next button changed to '换一个' (Change It)
+        // 2. New 'Submit' button added
         generateBtn.addEventListener('click', changeCard);
+        submitBtn.addEventListener('click', handleSubmit);
         voiceBtn.addEventListener('click', startVoiceRecognition);
     </script>
 </body>
