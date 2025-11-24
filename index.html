@@ -1,352 +1,104 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Friendship Prompt Card</title>
-    
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
-
+    <title>动态表情 - 粗细一致</title>
     <style>
-        /* Global Styles */
-        body {
-            font-family: 'Roboto', sans-serif;
+        /* 统一线条粗细变量 */
+        :root {
+            --line-thickness: 10px; /* 定义线条粗细为10px */
+            --eye-height: 35px; /* 眼睛睁开时的高度 */
+            --face-color: #ffb6a3; /* 图片中的淡粉色 */
+        }
+        
+        /* 1. 页面整体样式 */
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            display: flex; 
+            justify-content: center;
+            align-items: center;
             background-color: #f0f0f0; 
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            margin: 0;
-            padding: 20px;
+            overflow: hidden; 
         }
 
-        .container {
-            background-color: #ffffff;
-            padding: 30px;
-            border-radius: 16px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-            max-width: 400px;
-            width: 100%;
-            text-align: center;
+        /* 2. 表情容器 */
+        .emoji-container {
+            width: 80vw;
+            max-width: 300px; 
+            height: 80vw;
+            max-height: 300px;
+            background-color: var(--face-color);
+            border-radius: 50%; 
+            position: relative; 
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); 
         }
 
-        /* Question Card Styles */
-        .card-area {
-            min-height: 200px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin-bottom: 30px;
+        /* 3. 眼睛和嘴巴的通用样式 */
+        .eye {
+            position: absolute;
+            background-color: black;
+            border-radius: calc(var(--line-thickness) / 2); /* 使线条端点圆滑 */
         }
 
-        .question-card {
-            background-color: #ffffff; 
-            color: #333333; 
-            border-radius: 12px;
-            padding: 25px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); 
-            width: 100%;
-            min-height: 150px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            transition: transform 0.5s ease-out, opacity 0.5s ease-out; 
-            transform: scale(1);
-            opacity: 1;
-            border: 1px solid #eeeeee; 
+        /* 4. 眼睛样式（垂直线段） */
+        .eye {
+            width: var(--line-thickness); /* 眼睛宽度等于线条粗细 */
+            height: var(--eye-height); /* 眼睛高度 (睁眼状态) */
+            top: 35%; /* 调整眼睛位置 */
+            animation: blink 4s infinite; /* 眨眼动画，4秒循环一次 */
         }
 
-        .question-card.exit {
-            transform: scale(0.9);
-            opacity: 0;
+        /* 4a. 左眼定位 */
+        .left-eye {
+            left: 35%;
+            transform: translateX(-50%);
         }
 
-        .question-card p {
-            font-size: 1.1rem;
-            font-weight: 400;
-            line-height: 1.6;
-            margin: 0;
+        /* 4b. 右眼定位 */
+        .right-eye {
+            right: 35%;
+            transform: translateX(50%);
         }
 
-        /* Answer Area Styles */
-        .answer-area {
-            margin-top: 20px;
-            text-align: left;
-        }
-        
-        #answer-input {
-            width: calc(100% - 20px);
-            min-height: 80px;
-            padding: 10px;
-            border: 1px solid #cccccc;
-            border-radius: 8px;
-            font-family: inherit;
-            resize: vertical;
-            font-size: 1rem;
-            margin-bottom: 15px;
-        }
-        
-        .action-bar {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 10px;
-        }
-
-        .button-group {
-            display: flex;
-            gap: 10px;
-            flex: 1;
-        }
-
-        /* Button Styles */
-        .button {
-            background-color: #5c7cfa; 
-            color: #ffffff;
-            border: none;
-            padding: 12px 20px;
-            border-radius: 50px;
-            font-size: 1rem;
-            font-weight: 700;
-            cursor: pointer;
-            transition: background-color 0.3s, transform 0.1s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .button.submit-btn {
-            background-color: #1abc9c; 
-            flex: 1;
-        }
-        
-        .button.next-btn {
-            background-color: #95a5a6; 
-            flex: 1;
-        }
-
-        .button.voice-btn {
-            background-color: #333333; 
-            flex: 0 0 50px; 
-            padding: 12px;
+        /* 5. 嘴巴样式（保持不动，粗细与眼睛一致） */
+        .mouth {
+            position: absolute;
+            width: 80px; /* 嘴巴整体宽度 */
+            height: 80px; /* 嘴巴整体高度 */
+            
+            /* 关键：边框宽度等于线条粗细 */
+            border: var(--line-thickness) solid black; 
+            border-color: transparent transparent black transparent; /* 只有下边框有颜色 */
+            
             border-radius: 50%;
+            bottom: 25%;
+            right: 30%; /* 调整位置 */
+            transform: rotate(-45deg); /* 歪嘴笑 */
+            background-color: transparent; 
         }
         
-        .button.submit-btn:hover {
-            background-color: #16a085;
+        /* 6. 关键帧动画：眨眼 */
+        @keyframes blink {
+            0%, 45%, 100% {
+                height: var(--eye-height); /* 睁眼 */
+                top: 35%;
+            }
+            50%, 52% {
+                height: var(--line-thickness); /* 闭眼 (高度等于线条粗细，形成一条水平线) */
+                top: calc(35% + (var(--eye-height) - var(--line-thickness)) / 2); /* 调整位置，保持中心不变 */
+            }
         }
         
-        .button.next-btn:hover {
-            background-color: #7f8c8d;
-        }
-
-        .button.voice-btn:hover {
-            background-color: #000000;
-        }
-
-        .button:active {
-            transform: scale(0.98);
-        }
-
-        /* Microphone Icon (Linear SVG) */
-        .mic-icon-svg {
-            width: 20px;
-            height: 20px;
-            fill: none;
-            stroke: white;
-            stroke-width: 2;
-            stroke-linecap: round;
-            stroke-linejoin: round;
-        }
-        
-        #submission-message {
-            margin-top: 15px;
-            font-weight: 700;
-            color: #1abc9c;
-            min-height: 20px;
-        }
-
-        .footer {
-            margin-top: 25px;
-            font-size: 0.85rem;
-            color: #888888;
-        }
     </style>
 </head>
 <body>
-
-    <div class="container">
-        
-        <div id="card-area" class="card-area">
-            </div>
-
-        <div class="answer-area">
-            <label for="answer-input" style="font-weight: 700; color: #333333;">Your Answer:</label>
-            <textarea id="answer-input" placeholder="Type your answer here..."></textarea>
-            
-            <div class="action-bar">
-                
-                <div class="button-group">
-                    <button id="submit-btn" class="button submit-btn">Submit</button>
-                    <button id="generate-btn" class="button next-btn">Draw New</button>
-                </div>
-                
-                <button id="voice-btn" class="button voice-btn" title="Voice Input (Requires browser support)">
-                    <svg class="mic-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                        <line x1="12" y1="19" x2="12" y2="23"></line>
-                        <line x1="8" y1="23" x2="16" y2="23"></line>
-                    </svg>
-                </button>
-            </div>
-        </div>
-        
-        <div id="submission-message"></div>
-        
-        <p class="footer">💡 A prompt to encourage connecting with a faraway friend.</p>
+    <div class="emoji-container">
+        <div class="eye left-eye"></div>
+        <div class="eye right-eye"></div>
+        <div class="mouth"></div>
     </div>
-
-    <script>
-        // Friendship questions in English
-        const questions = [
-            "What's the weather like where you are right now? (Remember to bring an umbrella or sunscreen!)",
-            "Did anything happen recently that made you laugh out loud? Share the story!",
-            "Did you try any new food today? Was it delicious?",
-            "How much rest time did you manage to schedule for yourself during your busy day?",
-            "If you had one free day, where would you choose to go and what would you do?",
-            "Do you have any small, recent accomplishments that are worth celebrating?",
-            "When was the last time you felt completely relaxed, and what were you doing?",
-            "Have you watched any interesting movies or videos recently? Give me a recommendation!",
-            "What sounds are currently dominant in your city? (e.g., wind, traffic, people)",
-            "What's one thing we haven't done yet that you'd most like to do together?",
-            "If you could swap one skill with me, which one would you choose?",
-            "What is one thing you truly wish you had right now, big or small (like a cup of boba)?",
-            "What is the biggest difference between your current city and your hometown?"
-        ];
-
-        const cardArea = document.getElementById('card-area');
-        const generateBtn = document.getElementById('generate-btn');
-        const submitBtn = document.getElementById('submit-btn');
-        const voiceBtn = document.getElementById('voice-btn');
-        const answerInput = document.getElementById('answer-input');
-        const submissionMessage = document.getElementById('submission-message');
-
-        let currentQuestionIndex = -1; 
-
-        // --- Core Functions ---
-
-        function getRandomQuestion() {
-            let newIndex;
-            if (questions.length > 1) {
-                do {
-                    newIndex = Math.floor(Math.random() * questions.length);
-                } while (newIndex === currentQuestionIndex);
-            } else {
-                newIndex = 0; 
-            }
-            currentQuestionIndex = newIndex;
-            return questions[newIndex];
-        }
-
-        function displayNewCard() {
-            const questionText = getRandomQuestion();
-            
-            const newCard = document.createElement('div');
-            newCard.classList.add('question-card');
-            newCard.innerHTML = `<p>${questionText}</p>`;
-            
-            cardArea.appendChild(newCard);
-            
-            // Clear state
-            answerInput.value = '';
-            submissionMessage.textContent = '';
-        }
-
-        function changeCard() {
-            const oldCard = cardArea.querySelector('.question-card');
-            
-            if (oldCard) {
-                oldCard.classList.add('exit');
-                
-                setTimeout(() => {
-                    oldCard.remove();
-                    displayNewCard();
-                }, 500); 
-            } else {
-                displayNewCard();
-            }
-        }
-        
-        function handleSubmit() {
-            const answer = answerInput.value.trim();
-            const currentQuestion = cardArea.querySelector('p').textContent;
-            
-            if (answer.length === 0) {
-                submissionMessage.textContent = "Please type an answer before submitting!";
-                submissionMessage.style.color = '#e74c3c'; 
-                return;
-            }
-            
-            // --- SIMULATED SUBMISSION LOGIC ---
-            // True submission requires a backend service (e.g., Google Forms/Airtable).
-            // This simulation provides user feedback.
-            
-            const message = `🎉 Success! Your answer has been noted. Now go share this with your friend!`;
-            submissionMessage.textContent = message;
-            submissionMessage.style.color = '#1abc9c'; 
-            
-            console.log("--- Submission Data ---");
-            console.log("Question:", currentQuestion);
-            console.log("Answer:", answer);
-        }
-
-
-        // --- Web Speech API (Voice Recognition) Implementation ---
-        
-        function startVoiceRecognition() {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-            if (!SpeechRecognition) {
-                alert('Sorry, your browser does not support voice input via this button. Please use the microphone icon on your mobile keyboard instead.');
-                return;
-            }
-
-            const recognition = new SpeechRecognition();
-            recognition.lang = 'en-US'; 
-            recognition.continuous = false; 
-            recognition.interimResults = false; 
-            
-            voiceBtn.innerHTML = '🎙️ Listening...';
-            voiceBtn.disabled = true;
-            recognition.start();
-
-            recognition.onresult = (event) => {
-                const transcript = event.results[0][0].transcript;
-                answerInput.value += transcript; 
-            };
-
-            recognition.onspeechend = () => {
-                recognition.stop();
-                voiceBtn.innerHTML = '<svg class="mic-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>';
-                voiceBtn.disabled = false;
-            };
-
-            recognition.onerror = (event) => {
-                console.error('Voice recognition error:', event.error);
-                voiceBtn.innerHTML = '<svg class="mic-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>';
-                voiceBtn.disabled = false;
-                alert(`Voice recognition error: ${event.error}. Please check your microphone permissions.`);
-            };
-        }
-
-        // --- Event Listeners ---
-        window.onload = function() {
-            changeCard();
-        };
-
-        generateBtn.addEventListener('click', changeCard);
-        submitBtn.addEventListener('click', handleSubmit);
-        voiceBtn.addEventListener('click', startVoiceRecognition);
-    </script>
 </body>
 </html>
