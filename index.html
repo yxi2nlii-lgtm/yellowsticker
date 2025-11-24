@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>动态表情 - 脸部同步微移与粒子特效</title>
+    <title>动态表情 - 颜色切换与震动</title>
     <style>
         /* 统一线条粗细变量 */
         :root {
             --line-thickness: 10px;
             --eye-height: 35px;
-            --face-color: #ffb6a3;
+            --face-color: #ffb6a3; /* 初始颜色 */
             --max-move-distance: 30px; 
             --max-squeeze-scale: 0.90; 
             --max-stretch-scale: 1.05;
@@ -22,33 +22,37 @@
             margin: 0;
             padding: 0;
             height: 100%;
+            width: 100%; 
             display: flex; 
             justify-content: center;
             align-items: center;
             background-color: #f0f0f0; 
             padding: var(--face-padding);
             box-sizing: border-box; 
-            /* 确保粒子能在整个视口内显示 */
             position: relative; 
-            overflow: hidden; /* 防止粒子超出页面引起滚动条 */
+            overflow: hidden; 
         }
 
         /* 2. 表情容器 (大圆脸) */
         .emoji-container {
-            width: 80vw;
+            width: 80vw; 
             max-width: 300px; 
-            height: 80vw;
-            max-height: 300px;
+            height: auto; 
+            aspect-ratio: 1 / 1; 
+            
+            /* 使用 CSS 变量作为背景色 */
             background-color: var(--face-color);
+            
             border-radius: 50%; 
             position: relative;
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); 
             cursor: pointer;
-            transition: transform 0.1s ease-out, box-shadow 0.1s ease-out; 
-            overflow: hidden; /* 隐藏五官超出脸部容器的部分 */
-            z-index: 10; /* 确保表情在粒子上方 */
+            
+            /* 为颜色变化添加过渡效果，使切换更平滑 */
+            transition: transform 0.1s ease-out, box-shadow 0.1s ease-out, background-color 0.3s ease; 
+            overflow: hidden; 
         }
-        
+
         /* 3. 五官容器 (内部移动层) */
         .features-wrapper {
             position: absolute;
@@ -106,34 +110,14 @@
             }
         }
         
-        /* --- 粒子特效相关 CSS --- */
-        #particle-container {
-            position: absolute; /* 相对于 body 定位 */
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none; /* 确保粒子容器不会阻挡点击事件 */
-            z-index: 5; /* 确保粒子在表情下方或特定层级 */
+        @keyframes shake {
+            0% { transform: scale(1.0); }
+            50% { transform: scale(0.98); } 
+            100% { transform: scale(1.0); } 
         }
-
-        .particle {
-            position: absolute;
-            background-color: #f7e2a9; /* 粒子颜色，可以随机 */
-            border-radius: 50%; /* 圆形粒子 */
-            opacity: 0; /* 初始透明 */
-            animation: explode 1s forwards; /* 爆炸动画 */
-        }
-
-        @keyframes explode {
-            0% {
-                transform: scale(0.2); /* 初始小 */
-                opacity: 1; /* 初始完全不透明 */
-            }
-            100% {
-                transform: translate(var(--x), var(--y)) scale(1.5); /* 向外扩散并放大 */
-                opacity: 0; /* 最终完全透明 */
-            }
+        
+        .click-shake {
+            animation: shake 0.2s ease-in-out; 
         }
     </style>
 </head>
@@ -146,21 +130,30 @@
         </div>
     </div>
     
-    <div id="particle-container"></div>
-
     <script>
-        const container = document.getElementById('emojiContainer'); // 使用ID获取，更精确
+        const container = document.getElementById('emojiContainer');
         const wrapper = document.getElementById('featuresWrapper');
-        const particleContainer = document.getElementById('particle-container');
+        const root = document.documentElement; // 获取根元素来操作CSS变量
         
-        // 读取 CSS 变量
-        const maxDistance = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--max-move-distance')) || 30;
-        const maxSqueezeScale = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--max-squeeze-scale')) || 0.90;
-        const maxStretchScale = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--max-stretch-scale')) || 1.05;
-        const faceShiftRatio = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--face-shift-ratio')) || 0.15;
+        // 定义可切换的颜色数组
+        const faceColors = [
+            '#ffb6a3', // 初始粉色
+            '#ffe6aa', // 黄色
+            '#a3e0ff', // 浅蓝色
+            '#c7a3ff', // 紫色
+            '#a3ffc7', // 浅绿色
+            '#ff8a8a'  // 红色
+        ];
+        let lastColorIndex = 0; // 记录上一次的颜色索引
+
+        // 读取 CSS 变量 (省略了重复的代码)
+        const maxDistance = parseFloat(getComputedStyle(root).getPropertyValue('--max-move-distance')) || 30;
+        const maxSqueezeScale = parseFloat(getComputedStyle(root).getPropertyValue('--max-squeeze-scale')) || 0.90;
+        const maxStretchScale = parseFloat(getComputedStyle(root).getPropertyValue('--max-stretch-scale')) || 1.05;
+        const faceShiftRatio = parseFloat(getComputedStyle(root).getPropertyValue('--face-shift-ratio')) || 0.15;
 
 
-        // 统一处理鼠标点击/触摸事件 (用于五官位移和聚拢)
+        // 统一处理五官位移和聚拢 (mousemove/touchmove)
         function handleInteraction(event) {
             event.preventDefault();
 
@@ -186,13 +179,21 @@
                 moveY = dy * ratio;
             }
 
+            // --- 5. 计算圆脸背景的微小位移 ---
             const faceMoveX = moveX * -faceShiftRatio; 
             const faceMoveY = moveY * -faceShiftRatio; 
             
-            container.style.transform = `translate(${faceMoveX}px, ${faceMoveY}px)`;
+            let currentTransform = container.style.transform;
+            if (currentTransform.includes('scale')) {
+                container.style.transform = currentTransform.replace(/translate\([^)]*\)/g, `translate(${faceMoveX}px, ${faceMoveY}px)`);
+            } else {
+                 container.style.transform = `translate(${faceMoveX}px, ${faceMoveY}px)`;
+            }
+            
+
+            // --- 6. 计算五官的聚拢/拉伸（缩放部分）---
             
             const maxAbsMove = Math.max(Math.abs(moveX), Math.abs(moveY)); 
-            const maxMoveRatio = maxAbsMove / maxDistance; 
             
             let scaleX = 1;
             if (Math.abs(moveX) > Math.abs(moveY)) {
@@ -215,68 +216,46 @@
             wrapper.style.transform = `translate(${moveX}px, ${moveY}px) scaleX(${scaleX}) scaleY(${scaleY})`;
         }
 
-        // --- 粒子生成函数 ---
-        function createParticles(x, y) {
-            const numParticles = 15; // 每次点击生成的粒子数量
-            const particleSize = 8; // 粒子大小
+        // --- 新增：颜色切换逻辑 ---
+        function changeFaceColor() {
+            let newIndex;
+            do {
+                // 随机选择一个新的颜色索引，确保不与上一次相同
+                newIndex = Math.floor(Math.random() * faceColors.length);
+            } while (newIndex === lastColorIndex);
 
-            for (let i = 0; i < numParticles; i++) {
-                const particle = document.createElement('div');
-                particle.classList.add('particle');
-                
-                // 随机设置粒子初始位置在点击点附近
-                const startX = x - particleSize / 2 + (Math.random() - 0.5) * 10;
-                const startY = y - particleSize / 2 + (Math.random() - 0.5) * 10;
-                
-                particle.style.width = `${particleSize}px`;
-                particle.style.height = `${particleSize}px`;
-                particle.style.left = `${startX}px`;
-                particle.style.top = `${startY}px`;
-
-                // 随机生成粒子的最终扩散方向和距离
-                const angle = Math.random() * Math.PI * 2; // 0到2PI (360度)
-                const distance = Math.random() * 80 + 50; // 扩散距离 50px 到 130px
-                const endX = Math.cos(angle) * distance;
-                const endY = Math.sin(angle) * distance;
-
-                // 使用 CSS 变量传递动画参数
-                particle.style.setProperty('--x', `${endX}px`);
-                particle.style.setProperty('--y', `${endY}px`);
-
-                particleContainer.appendChild(particle);
-
-                // 动画结束后移除粒子 (防止DOM元素过多)
-                particle.addEventListener('animationend', () => {
-                    particle.remove();
-                });
-            }
+            const newColor = faceColors[newIndex];
+            
+            // 更新 CSS 变量，使笑脸颜色改变
+            root.style.setProperty('--face-color', newColor);
+            lastColorIndex = newIndex;
         }
 
-        // --- 监听表情容器的点击事件 (用于生成粒子) ---
-        container.addEventListener('click', (event) => {
-            // 获取点击点相对于文档的坐标
-            const clickX = event.clientX;
-            const clickY = event.clientY;
+        // --- 触发点击效果和颜色切换 ---
+        function handleClickEffect(event) {
+            // 1. 触发震动动画
+            container.classList.remove('click-shake');
+            void container.offsetWidth; 
+            container.classList.add('click-shake');
             
-            createParticles(clickX, clickY);
-        });
-        container.addEventListener('touchstart', (event) => {
-            // 在触摸开始时也生成粒子
-            const touchX = event.touches[0].clientX;
-            const touchY = event.touches[0].clientY;
-            createParticles(touchX, touchY);
-        }, { passive: true }); // passive: true 提升触摸事件性能
+            // 2. 切换颜色
+            changeFaceColor();
+        }
 
-
-        // 绑定事件： (五官位移和聚拢)
-        document.addEventListener('mousemove', handleInteraction);
-        document.addEventListener('touchmove', handleInteraction);
-        
-        // 当鼠标/手指抬起时，五官和脸部复位
+        // --- 复位函数 ---
         function resetPosition() {
              wrapper.style.transform = 'translate(0, 0) scaleX(1) scaleY(1)';
              container.style.transform = 'translate(0, 0)';
+             container.classList.remove('click-shake');
         }
+
+        // 绑定事件：
+        document.addEventListener('mousemove', handleInteraction);
+        document.addEventListener('touchmove', handleInteraction);
+        
+        container.addEventListener('click', handleClickEffect);
+        container.addEventListener('touchstart', handleClickEffect); 
+
         document.addEventListener('mouseup', resetPosition);
         document.addEventListener('touchend', resetPosition);
         document.addEventListener('touchcancel', resetPosition);
