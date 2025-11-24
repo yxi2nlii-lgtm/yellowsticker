@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>动态表情 - 粗细一致</title>
+    <title>动态表情 - 眼神跟随</title>
     <style>
         /* 统一线条粗细变量 */
         :root {
-            --line-thickness: 10px; /* 定义线条粗细为10px */
-            --eye-height: 35px; /* 眼睛睁开时的高度 */
-            --face-color: #ffb6a3; /* 图片中的淡粉色 */
+            --line-thickness: 10px;
+            --eye-height: 35px;
+            --face-color: #ffb6a3;
         }
         
         /* 1. 页面整体样式 */
@@ -35,30 +35,44 @@
             position: relative; 
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); 
         }
-
-        /* 3. 眼睛和嘴巴的通用样式 */
-        .eye {
+        
+        /* 3. 眼睛容器（用于定位和旋转） */
+        /* 我们用一个外部容器定位眼睛的中心点，然后用内层元素进行视觉跟随 */
+        .eye-pivot {
             position: absolute;
-            background-color: black;
-            border-radius: calc(var(--line-thickness) / 2); /* 使线条端点圆滑 */
+            width: var(--line-thickness); 
+            height: var(--eye-height);
+            top: 35%; /* 眼睛中心点的高度 */
+            
+            /* 确保旋转基点是眼睛的中心 */
+            transform-origin: center;
         }
 
-        /* 4. 眼睛样式（垂直线段） */
-        .eye {
-            width: var(--line-thickness); /* 眼睛宽度等于线条粗细 */
-            height: var(--eye-height); /* 眼睛高度 (睁眼状态) */
-            top: 35%; /* 调整眼睛位置 */
-            animation: blink 4s infinite; /* 眨眼动画，4秒循环一次 */
+        /* 4. 眼睛样式（线段本身） */
+        .eye-segment {
+            width: var(--line-thickness); 
+            height: var(--eye-height);
+            background-color: black;
+            border-radius: calc(var(--line-thickness) / 2);
+            position: absolute; /* 相对于父级 eye-pivot 定位 */
+            
+            /* 初始状态：居中 */
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%); /* 确保线段中心与 pivot 中心重合 */
+            
+            /* 眨眼动画应用到线段上 */
+            animation: blink 4s infinite; 
         }
 
         /* 4a. 左眼定位 */
-        .left-eye {
+        .left-eye-pivot {
             left: 35%;
             transform: translateX(-50%);
         }
 
         /* 4b. 右眼定位 */
-        .right-eye {
+        .right-eye-pivot {
             right: 35%;
             transform: translateX(50%);
         }
@@ -66,17 +80,14 @@
         /* 5. 嘴巴样式（保持不动，粗细与眼睛一致） */
         .mouth {
             position: absolute;
-            width: 80px; /* 嘴巴整体宽度 */
-            height: 80px; /* 嘴巴整体高度 */
-            
-            /* 关键：边框宽度等于线条粗细 */
+            width: 80px;
+            height: 80px;
             border: var(--line-thickness) solid black; 
-            border-color: transparent transparent black transparent; /* 只有下边框有颜色 */
-            
+            border-color: transparent transparent black transparent; 
             border-radius: 50%;
             bottom: 25%;
-            right: 30%; /* 调整位置 */
-            transform: rotate(-45deg); /* 歪嘴笑 */
+            right: 30%; 
+            transform: rotate(-45deg); 
             background-color: transparent; 
         }
         
@@ -84,11 +95,12 @@
         @keyframes blink {
             0%, 45%, 100% {
                 height: var(--eye-height); /* 睁眼 */
-                top: 35%;
+                transform: translate(-50%, -50%); /* 保持中心 */
             }
             50%, 52% {
-                height: var(--line-thickness); /* 闭眼 (高度等于线条粗细，形成一条水平线) */
-                top: calc(35% + (var(--eye-height) - var(--line-thickness)) / 2); /* 调整位置，保持中心不变 */
+                height: var(--line-thickness); /* 闭眼 (水平粗线) */
+                /* 闭眼时线段高度变化，但我们不改 top，只让线段围绕中心压缩 */
+                transform: translate(-50%, -50%); 
             }
         }
         
@@ -96,9 +108,74 @@
 </head>
 <body>
     <div class="emoji-container">
-        <div class="eye left-eye"></div>
-        <div class="eye right-eye"></div>
+        <div class="eye-pivot left-eye-pivot">
+            <div class="eye-segment"></div>
+        </div>
+        <div class="eye-pivot right-eye-pivot">
+            <div class="eye-segment"></div>
+        </div>
+        
         <div class="mouth"></div>
     </div>
+
+    <script>
+        const container = document.querySelector('.emoji-container');
+        const leftEye = document.querySelector('.left-eye-pivot');
+        const rightEye = document.querySelector('.right-eye-pivot');
+
+        // 统一处理鼠标和触摸事件
+        function handleInteraction(event) {
+            // 获取触摸点或鼠标点坐标
+            const clientX = event.clientX || event.touches[0].clientX;
+            const clientY = event.clientY || event.touches[0].clientY;
+
+            // 1. 获取容器和眼睛的位置信息
+            const containerRect = container.getBoundingClientRect();
+            
+            // 计算眼睛的中心点（相对于视口）
+            const leftEyeCenterX = containerRect.left + container.offsetWidth * 0.35;
+            const leftEyeCenterY = containerRect.top + container.offsetHeight * 0.35;
+            
+            const rightEyeCenterX = containerRect.right - container.offsetWidth * 0.35;
+            const rightEyeCenterY = containerRect.top + container.offsetHeight * 0.35;
+
+            // 2. 计算眼睛需要转向的角度
+            
+            // 左眼角度
+            const leftEyeAngle = calculateAngle(leftEyeCenterX, leftEyeCenterY, clientX, clientY);
+            // 右眼角度
+            const rightEyeAngle = calculateAngle(rightEyeCenterX, rightEyeCenterY, clientX, clientY);
+
+            // 3. 应用旋转角度 (加90度是因为竖线初始状态是0度，我们需要让0度朝上)
+            leftEye.style.transform = `rotate(${leftEyeAngle + 90}deg)`;
+            rightEye.style.transform = `rotate(${rightEyeAngle + 90}deg)`;
+        }
+
+        /**
+         * 计算两点间的角度 (以第一个点为原点)
+         * @param {number} cx 眼睛中心X
+         * @param {number} cy 眼睛中心Y
+         * @param {number} tx 目标点X (手指/鼠标)
+         * @param {number} ty 目标点Y (手指/鼠标)
+         * @returns {number} 角度 (度)
+         */
+        function calculateAngle(cx, cy, tx, ty) {
+            const dx = tx - cx;
+            const dy = ty - cy;
+            // atan2 返回的角度是从 -PI 到 PI，需要转换成度
+            return Math.atan2(dy, dx) * (180 / Math.PI);
+        }
+
+        // 绑定事件：
+        // 鼠标移动事件 (用于PC或模拟器调试)
+        document.addEventListener('mousemove', handleInteraction);
+        // 触摸移动事件 (用于手机端)
+        document.addEventListener('touchmove', handleInteraction);
+        
+        // 绑定点击事件，确保点击后也会更新一次位置
+        container.addEventListener('click', handleInteraction);
+        container.addEventListener('touchstart', handleInteraction);
+
+    </script>
 </body>
 </html>
