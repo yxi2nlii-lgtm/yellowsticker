@@ -3,13 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>动态表情 - 颜色切换与震动</title>
+    <title>动态表情 - 状态记忆与柔和阴影</title>
     <style>
         /* 统一线条粗细变量 */
         :root {
             --line-thickness: 10px;
             --eye-height: 35px;
-            --face-color: #ffb6a3; /* 初始颜色 */
+            /* 初始颜色：完全透明 */
+            --face-color: transparent; 
             --max-move-distance: 30px; 
             --max-squeeze-scale: 0.90; 
             --max-stretch-scale: 1.05;
@@ -26,7 +27,8 @@
             display: flex; 
             justify-content: center;
             align-items: center;
-            background-color: #f0f0f0; 
+            /* 背景色设置为白色 */
+            background-color: #FFFFFF; 
             padding: var(--face-padding);
             box-sizing: border-box; 
             position: relative; 
@@ -40,16 +42,15 @@
             height: auto; 
             aspect-ratio: 1 / 1; 
             
-            /* 使用 CSS 变量作为背景色 */
-            background-color: var(--face-color);
+            background-color: var(--face-color); /* 初始透明 */
             
             border-radius: 50%; 
             position: relative;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); 
+            box-shadow: none; /* 初始无阴影，由JS动态设置 */
             cursor: pointer;
             
-            /* 为颜色变化添加过渡效果，使切换更平滑 */
-            transition: transform 0.1s ease-out, box-shadow 0.1s ease-out, background-color 0.3s ease; 
+            /* 为颜色变化和透明度变化添加过渡效果 */
+            transition: transform 0.1s ease-out, box-shadow 0.1s ease-out, background-color 0.5s ease; 
             overflow: hidden; 
         }
 
@@ -61,6 +62,7 @@
             width: 100%;
             height: 100%;
             transition: transform 0.1s ease-out; 
+            opacity: 1; 
         }
 
         /* 4. 眼睛和嘴巴的通用样式 */
@@ -133,32 +135,102 @@
     <script>
         const container = document.getElementById('emojiContainer');
         const wrapper = document.getElementById('featuresWrapper');
-        const root = document.documentElement; // 获取根元素来操作CSS变量
+        const root = document.documentElement; 
         
-        // 定义可切换的颜色数组
-        const faceColors = [
-            '#ffb6a3', // 初始粉色
-            '#ffe6aa', // 黄色
-            '#a3e0ff', // 浅蓝色
-            '#c7a3ff', // 紫色
-            '#a3ffc7', // 浅绿色
-            '#ff8a8a'  // 红色
-        ];
-        let lastColorIndex = 0; // 记录上一次的颜色索引
+        // --- 颜色和状态常量 ---
+        const TARGET_HUE = 0;           
+        const TARGET_SATURATION = 100;  
+        const TARGET_LIGHTNESS = 70;    
 
-        // 读取 CSS 变量 (省略了重复的代码)
+        const MAX_CLICKS = 10;      
+        const DECAY_DURATION_SEC = 30; 
+        const DECAY_RATE_PER_SEC = MAX_CLICKS / DECAY_DURATION_SEC; 
+
+        // --- 状态变量 ---
+        let clickCount = 0; 
+        let decayInterval = null; 
+        
+        // --- 移动和聚拢常量 (从CSS获取) ---
         const maxDistance = parseFloat(getComputedStyle(root).getPropertyValue('--max-move-distance')) || 30;
         const maxSqueezeScale = parseFloat(getComputedStyle(root).getPropertyValue('--max-squeeze-scale')) || 0.90;
         const maxStretchScale = parseFloat(getComputedStyle(root).getPropertyValue('--max-stretch-scale')) || 1.05;
         const faceShiftRatio = parseFloat(getComputedStyle(root).getPropertyValue('--face-shift-ratio')) || 0.15;
 
 
+        // --- 状态存储函数 ---
+        function saveState() {
+            localStorage.setItem('emojiClickCount', clickCount);
+            localStorage.setItem('emojiLastUpdateTime', Date.now());
+        }
+
+
+        // --- 颜色逻辑函数 ---
+        function updateColor() {
+            const progress = clickCount / MAX_CLICKS; // 0 到 1
+
+            const currentSaturation = Math.round(TARGET_SATURATION * progress);
+            const currentLightness = Math.round(100 - (100 - TARGET_LIGHTNESS) * progress);
+
+            if (progress === 0) {
+                root.style.setProperty('--face-color', 'transparent');
+                container.style.boxShadow = 'none'; 
+            } else {
+                const hslColor = `hsl(${TARGET_HUE}, ${currentSaturation}%, ${currentLightness}%)`;
+                root.style.setProperty('--face-color', hslColor);
+                
+                // 【关键修改】: 调整阴影参数，使其更模糊、柔和
+                const shadowOffsetY = 4 * progress; // 垂直偏移量
+                const shadowBlur = 15 + 10 * progress; // 模糊半径，从15到25
+                const shadowSpread = 0; // 扩散半径保持0或很小，防止阴影过大
+                const shadowOpacity = 0.1 + 0.2 * progress; // 透明度从0.1到0.3
+
+                container.style.boxShadow = `0 ${shadowOffsetY}px ${shadowBlur}px ${shadowSpread}px rgba(0, 0, 0, ${shadowOpacity})`; 
+            }
+        }
+
+        // 衰减逻辑，每秒运行一次
+        function updateDecay() {
+            if (clickCount <= 0) {
+                clickCount = 0; 
+                clearInterval(decayInterval);
+                decayInterval = null;
+                updateColor(); 
+                saveState(); 
+                return;
+            }
+
+            const stepsToDecay = 1 * DECAY_RATE_PER_SEC; 
+
+            clickCount = Math.max(0, clickCount - stepsToDecay);
+            
+            updateColor();
+            saveState(); 
+        }
+
+
+        // --- 事件处理函数 ---
+        function handleClickEffect(event) {
+            container.classList.remove('click-shake');
+            void container.offsetWidth; 
+            container.classList.add('click-shake');
+            
+            clickCount = Math.min(MAX_CLICKS, clickCount + 1);
+            updateColor();
+            saveState(); 
+            
+            if (!decayInterval) {
+                decayInterval = setInterval(updateDecay, 1000); 
+            }
+        }
+        
         // 统一处理五官位移和聚拢 (mousemove/touchmove)
         function handleInteraction(event) {
             event.preventDefault();
 
+            container.classList.remove('click-shake');
+            
             const clientX = event.clientX || (event.touches ? event.touches[0].clientX : event.clientX);
-            const clientY = event.clientY || (event.touches ? event.touches[0].clientY : event.clientY);
+            const clientY = event.clientY || (event.touches ? event.touches[0].clientY : event.clientX);
             
             if (clientX === undefined || clientY === undefined) return;
 
@@ -179,19 +251,11 @@
                 moveY = dy * ratio;
             }
 
-            // --- 5. 计算圆脸背景的微小位移 ---
             const faceMoveX = moveX * -faceShiftRatio; 
             const faceMoveY = moveY * -faceShiftRatio; 
             
-            let currentTransform = container.style.transform;
-            if (currentTransform.includes('scale')) {
-                container.style.transform = currentTransform.replace(/translate\([^)]*\)/g, `translate(${faceMoveX}px, ${faceMoveY}px)`);
-            } else {
-                 container.style.transform = `translate(${faceMoveX}px, ${faceMoveY}px)`;
-            }
+            container.style.transform = `translate(${faceMoveX}px, ${faceMoveY}px)`;
             
-
-            // --- 6. 计算五官的聚拢/拉伸（缩放部分）---
             
             const maxAbsMove = Math.max(Math.abs(moveX), Math.abs(moveY)); 
             
@@ -216,38 +280,40 @@
             wrapper.style.transform = `translate(${moveX}px, ${moveY}px) scaleX(${scaleX}) scaleY(${scaleY})`;
         }
 
-        // --- 新增：颜色切换逻辑 ---
-        function changeFaceColor() {
-            let newIndex;
-            do {
-                // 随机选择一个新的颜色索引，确保不与上一次相同
-                newIndex = Math.floor(Math.random() * faceColors.length);
-            } while (newIndex === lastColorIndex);
-
-            const newColor = faceColors[newIndex];
-            
-            // 更新 CSS 变量，使笑脸颜色改变
-            root.style.setProperty('--face-color', newColor);
-            lastColorIndex = newIndex;
-        }
-
-        // --- 触发点击效果和颜色切换 ---
-        function handleClickEffect(event) {
-            // 1. 触发震动动画
-            container.classList.remove('click-shake');
-            void container.offsetWidth; 
-            container.classList.add('click-shake');
-            
-            // 2. 切换颜色
-            changeFaceColor();
-        }
-
         // --- 复位函数 ---
         function resetPosition() {
              wrapper.style.transform = 'translate(0, 0) scaleX(1) scaleY(1)';
              container.style.transform = 'translate(0, 0)';
              container.classList.remove('click-shake');
         }
+
+        // --- 状态初始化逻辑（网页加载时执行） ---
+        function initializeState() {
+            const savedCount = localStorage.getItem('emojiClickCount');
+            const lastUpdate = localStorage.getItem('emojiLastUpdateTime');
+            const currentTime = Date.now();
+
+            if (savedCount && lastUpdate) {
+                let initialCount = parseFloat(savedCount);
+                const elapsedMs = currentTime - parseInt(lastUpdate);
+                const elapsedSec = elapsedMs / 1000;
+
+                const decayAmount = elapsedSec * DECAY_RATE_PER_SEC;
+                
+                clickCount = Math.max(0, initialCount - decayAmount);
+            } else {
+                clickCount = 0;
+            }
+
+            updateColor(); 
+
+            if (clickCount > 0) {
+                decayInterval = setInterval(updateDecay, 1000); 
+            }
+        }
+
+        // --- 启动 ---
+        initializeState(); 
 
         // 绑定事件：
         document.addEventListener('mousemove', handleInteraction);
@@ -259,6 +325,7 @@
         document.addEventListener('mouseup', resetPosition);
         document.addEventListener('touchend', resetPosition);
         document.addEventListener('touchcancel', resetPosition);
+        container.addEventListener('contextmenu', (e) => e.preventDefault()); 
 
     </script>
 </body>
