@@ -3,80 +3,175 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>动态表情 - 状态记忆与柔和阴影</title>
+    <title>Blynk 按钮 + 圆形变化</title>
     <style>
-        /* 统一线条粗细变量 */
         :root {
             --line-thickness: 10px;
-            --eye-height: 35px;
-            /* 初始颜色：完全透明 */
-            --face-color: transparent; 
             --max-move-distance: 30px; 
             --max-squeeze-scale: 0.90; 
             --max-stretch-scale: 1.05;
             --face-shift-ratio: 0.15; 
-            --face-padding: 50px; 
+            --face-padding: 40px; 
         }
         
-        /* 1. 页面整体样式 */
-        body, html {
+        /* 页面整体样式 */
+        html, body {
             margin: 0;
             padding: 0;
             height: 100%;
             width: 100%; 
             display: flex; 
+            flex-direction: column;
             justify-content: center;
             align-items: center;
-            /* 背景色设置为白色 */
             background-color: #FFFFFF; 
             padding: var(--face-padding);
             box-sizing: border-box; 
             position: relative; 
             overflow: hidden; 
+            font-family: sans-serif;
         }
 
-        /* 2. 表情容器 (大圆脸) */
+        /* 顶部文字区域 */
+        .text-area {
+            width: 100%;
+            text-align: center;
+            margin-bottom: 24px;
+            min-height: 120px;
+        }
+
+        .story-line {
+            opacity: 0;
+            margin: 6px 0;
+            font-size: 16px;
+            line-height: 1.5;
+            transition: opacity 0.6s ease;
+        }
+
+        .story-line.visible {
+            opacity: 1;
+        }
+
+        /* 底部 Blynk 状态 */
+        #blynk-status {
+            position: fixed;
+            bottom: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 11px;
+            color: #777;
+            opacity: 0.8;
+            pointer-events: none;
+        }
+
+        /* 主互动区域容器（固定大小） */
         .emoji-container {
-            width: 80vw; 
-            max-width: 300px; 
-            height: auto; 
+            width: 65vw;        
+            max-width: 260px;    
             aspect-ratio: 1 / 1; 
-            
-            background-color: var(--face-color); /* 初始透明 */
-            
-            border-radius: 50%; 
             position: relative;
-            box-shadow: none; /* 初始无阴影，由JS动态设置 */
             cursor: pointer;
-            
-            /* 为颜色变化和透明度变化添加过渡效果 */
-            transition: transform 0.1s ease-out, box-shadow 0.1s ease-out, background-color 0.5s ease; 
-            overflow: hidden; 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.1s ease-out;
         }
 
-        /* 3. 五官容器 (内部移动层) */
+        /* 大黄圆（问号 & 笑脸用） */
+        .big-circle {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            background-color: #FFDC5D;
+            box-shadow: 0 8px 22px rgba(0, 0, 0, 0.16);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 1;
+            transition: opacity 0.3s ease;
+        }
+
+        .big-circle.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* 内部图形容器：用来做挤压位移 */
         .features-wrapper {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            inset: 0;
             transition: transform 0.1s ease-out; 
-            opacity: 1; 
         }
 
-        /* 4. 眼睛和嘴巴的通用样式 */
+        /* 问号 / 笑脸 两个图层 */
+        #questionFace,
+        #smileFace {
+            position: absolute;
+            inset: 0;
+        }
+
+        /* 问号只在 state=question 显示 */
+        .state-question #questionFace { display: block; }
+        .state-question #smileFace   { display: none; }
+
+        /* 笑脸只在 state=smile 显示 */
+        .state-smile #questionFace { display: none; }
+        .state-smile #smileFace    { display: block; }
+
+        /* 其他状态都隐藏两者 */
+        .state-continue #questionFace,
+        .state-continue #smileFace,
+        .state-choose   #questionFace,
+        .state-choose   #smileFace {
+            display: none;
+        }
+
+        /* ===== 问号画法 ===== */
+        .question-arc {
+            position: absolute;
+            width: 90px;
+            height: 90px;
+            border: var(--line-thickness) solid #000;
+            border-bottom-color: transparent;
+            border-radius: 50%;
+            top: 20%;                 
+            left: 50%;
+            transform: translateX(-50%) rotate(40deg);
+            background: transparent;
+        }
+
+        .question-stem {
+            position: absolute;
+            width: var(--line-thickness);
+            height: 30px;
+            background: #000;
+            top: 58.5%;                 
+            left: 50%;
+            transform: translateX(-50%);
+            border-radius: 0;
+        }
+
+        .question-dot {
+            position: absolute;
+            width: var(--line-thickness);
+            height: var(--line-thickness);
+            background: #000;
+            top: 74%;                 
+            left: 50%;
+            transform: translateX(-50%);
+            border-radius: 0;
+        }
+
+        /* ===== 笑脸画法 ===== */
         .eye, .mouth {
             position: absolute;
             background-color: black;
         }
 
-        /* 5. 眼睛、嘴巴、眨眼动画等样式 (保持不变) */
         .eye {
             width: var(--line-thickness); 
-            height: var(--eye-height); 
+            height: 35px; 
             top: 35%; 
-            animation: blink 4s infinite; 
         }
 
         .left-eye {
@@ -100,21 +195,77 @@
             transform: rotate(-45deg); 
             background-color: transparent; 
         }
-        
-        @keyframes blink {
-            0%, 45%, 100% {
-                height: var(--eye-height);
-                transform: translateX(-50%); 
-            }
-            50%, 52% {
-                height: var(--line-thickness);
-                transform: translate(-50%, calc((var(--eye-height) - var(--line-thickness)) / 2));
-            }
+
+        /* Continue 阶段：一个小黄圆（和下面两个按钮一样大小） */
+        .continue-circle {
+            position: absolute;
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            background-color: #FFDC5D;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.18);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            font-size: 16px;
+            line-height: 1.3;
+            padding: 8px;
+            box-sizing: border-box;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.3s ease, transform 0.1s ease-out;
         }
-        
+
+        .state-continue .continue-circle {
+            opacity: 1;
+        }
+
+        /* Continue 文字 */
+        .continue-label {
+            white-space: nowrap;
+        }
+
+        /* ===== 选择阶段：两个独立小黄圆 ===== */
+        .split-wrapper {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 40px; /* 两个小圆之间的间距 */
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .state-choose .split-wrapper {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .split-circle {
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            background-color: #FFDC5D;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.18);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            font-size: 16px;
+            line-height: 1.3;
+            padding: 8px;
+            box-sizing: border-box;
+            cursor: pointer;
+            transition: transform 0.1s ease-out;
+        }
+
+        /* 点击轻微缩放抖动（保留） */
         @keyframes shake {
-            0% { transform: scale(1.0); }
-            50% { transform: scale(0.98); } 
+            0%   { transform: scale(1.0); }
+            50%  { transform: scale(0.98); } 
             100% { transform: scale(1.0); } 
         }
         
@@ -124,122 +275,270 @@
     </style>
 </head>
 <body>
-    <div class="emoji-container" id="emojiContainer">
-        <div class="features-wrapper" id="featuresWrapper">
-            <div class="eye left-eye"></div>
-            <div class="eye right-eye"></div>
-            <div class="mouth"></div>
+    <!-- 顶部文字 -->
+    <div class="text-area">
+        <p id="line1" class="story-line"></p>
+        <p id="line2" class="story-line"></p>
+        <p id="line3" class="story-line"></p>
+    </div>
+
+    <!-- 主互动区域：通过 state-* class 控制状态 -->
+    <div class="emoji-container state-question" id="emojiContainer">
+        <!-- 大黄圆（问号 & 笑脸） -->
+        <div class="big-circle" id="bigCircle">
+            <div class="features-wrapper" id="featuresWrapper">
+                <!-- 问号 -->
+                <div id="questionFace">
+                    <div class="question-arc"></div>
+                    <div class="question-stem"></div>
+                    <div class="question-dot"></div>
+                </div>
+                <!-- 笑脸 -->
+                <div id="smileFace">
+                    <div class="eye left-eye"></div>
+                    <div class="eye right-eye"></div>
+                    <div class="mouth"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Continue 阶段：一个小黄圆 -->
+        <div class="continue-circle" id="continueCircle">
+            <span class="continue-label">Continue</span>
+        </div>
+
+        <!-- 选择阶段：两个小黄圆 -->
+        <div class="split-wrapper" id="splitWrapper">
+            <div class="split-circle" id="yesCircle">Yes,<br>I picked it up.</div>
+            <div class="split-circle" id="noCircle">No</div>
         </div>
     </div>
+
+    <!-- Blynk 状态提示 -->
+    <div id="blynk-status">Blynk Status: Idle</div>
     
     <script>
-        const container = document.getElementById('emojiContainer');
-        const wrapper = document.getElementById('featuresWrapper');
-        const root = document.documentElement; 
-        
-        // --- 颜色和状态常量 ---
-        const TARGET_HUE = 0;           
-        const TARGET_SATURATION = 100;  
-        const TARGET_LIGHTNESS = 70;    
+        const container      = document.getElementById('emojiContainer');
+        const wrapper        = document.getElementById('featuresWrapper');
+        const bigCircle      = document.getElementById('bigCircle');
+        const continueCircle = document.getElementById('continueCircle');
+        const splitWrapper   = document.getElementById('splitWrapper');
+        const yesCircle      = document.getElementById('yesCircle');
+        const noCircle       = document.getElementById('noCircle');
 
-        const MAX_CLICKS = 10;      
-        const DECAY_DURATION_SEC = 30; 
-        const DECAY_RATE_PER_SEC = MAX_CLICKS / DECAY_DURATION_SEC; 
+        const root           = document.documentElement; 
+        const statusEl       = document.getElementById('blynk-status');
 
-        // --- 状态变量 ---
-        let clickCount = 0; 
-        let decayInterval = null; 
-        
-        // --- 移动和聚拢常量 (从CSS获取) ---
-        const maxDistance = parseFloat(getComputedStyle(root).getPropertyValue('--max-move-distance')) || 30;
+        const line1El        = document.getElementById('line1');
+        const line2El        = document.getElementById('line2');
+        const line3El        = document.getElementById('line3');
+
+        let state = 'question'; // question -> continue -> choose -> smile
+
+        /* ========= Blynk 配置 ========= */
+        const AUTH_TOKEN   = 'OqSFS2EppKQRi0DYBOTFNEQgW7pljRjT'; // 换成你自己的
+        const BLYNK_HOST   = 'blynk.cloud';
+        const VIRTUAL_PIN  = 'V1';
+        const PICKUP_ANGLE = 120;
+        const RETURN_ANGLE = 0;
+        /* ============================== */
+
+        const maxDistance     = parseFloat(getComputedStyle(root).getPropertyValue('--max-move-distance')) || 30;
         const maxSqueezeScale = parseFloat(getComputedStyle(root).getPropertyValue('--max-squeeze-scale')) || 0.90;
         const maxStretchScale = parseFloat(getComputedStyle(root).getPropertyValue('--max-stretch-scale')) || 1.05;
-        const faceShiftRatio = parseFloat(getComputedStyle(root).getPropertyValue('--face-shift-ratio')) || 0.15;
+        const faceShiftRatio  = parseFloat(getComputedStyle(root).getPropertyValue('--face-shift-ratio')) || 0.15;
 
+        async function sendCommand(value) { 
+            const url_push  = `https://${BLYNK_HOST}/external/api/update?token=${AUTH_TOKEN}&${VIRTUAL_PIN}=${value}`;
+            const url_reset = `https://${BLYNK_HOST}/external/api/update?token=${AUTH_TOKEN}&${VIRTUAL_PIN}=${RETURN_ANGLE}`;
 
-        // --- 状态存储函数 ---
-        function saveState() {
-            localStorage.setItem('emojiClickCount', clickCount);
-            localStorage.setItem('emojiLastUpdateTime', Date.now());
+            statusEl.innerText = `Blynk Status: Sending ${value}° PUSH...`;
+
+            try {
+                const response_push = await fetch(url_push);
+                if (!response_push.ok) {
+                    statusEl.innerText = `Blynk Status: PUSH Failed! (Code: ${response_push.status})`;
+                    return; 
+                }
+
+                statusEl.innerText = `Blynk Status: PUSH Success. Sending 0° RESET...`;
+
+                const response_reset = await fetch(url_reset);
+                if (response_reset.ok) {
+                    statusEl.innerText = `Blynk Status: Command ${value}° Sent & Cloud Reset Successfully!`;
+                } else {
+                    statusEl.innerText = `Blynk Status: PUSH Success, but RESET Failed! (Code: ${response_reset.status})`;
+                }
+
+            } catch (error) {
+                console.error('Network error:', error);
+                statusEl.innerText = `Blynk Status: Network Error! Could not reach Blynk.`;
+            }
         }
 
+        /* ========= 文案 ========= */
+        const pages = {
+            1: {
+                lines: [
+                    'Hi, stranger!',
+                    'This is the badminton racket I used in Delft.',
+                    'I often played at X, and this racket has been with me for many good sessions.'
+                ]
+            },
+            2: {
+                lines: [
+                    'Since I’m leaving, I’m putting it here in case someone who needs it can give it a new life.',
+                    'I\'m just wondering whether this little racket has found a new home.',
+                    ''
+                ]
+            },
+            3: {
+                lines: [
+                    'Thanks for picking up my racket.',
+                    'Hope you have fun with it!',
+                    ''
+                ]
+            }
+        };
 
-        // --- 颜色逻辑函数 ---
-        function updateColor() {
-            const progress = clickCount / MAX_CLICKS; // 0 到 1
+        function showTextPage(pageIndex) {
+            const { lines } = pages[pageIndex];
 
-            const currentSaturation = Math.round(TARGET_SATURATION * progress);
-            const currentLightness = Math.round(100 - (100 - TARGET_LIGHTNESS) * progress);
+            [line1El, line2El, line3El].forEach(el => el.classList.remove('visible'));
 
-            if (progress === 0) {
-                root.style.setProperty('--face-color', 'transparent');
-                container.style.boxShadow = 'none'; 
+            line1El.textContent = lines[0] || '';
+            line2El.textContent = lines[1] || '';
+            line3El.textContent = lines[2] || '';
+
+            setTimeout(() => {
+                if (lines[0]) line1El.classList.add('visible');
+                if (lines[1]) line2El.classList.add('visible');
+                if (lines[2]) line3El.classList.add('visible');
+            }, 20);
+        }
+
+        function setState(newState) {
+            state = newState;
+            container.classList.remove('state-question', 'state-continue', 'state-choose', 'state-smile');
+            container.classList.add(`state-${newState}`);
+
+            // 控制各层显隐（用 opacity / pointer-events）
+            if (newState === 'question' || newState === 'smile') {
+                bigCircle.classList.remove('hidden');
             } else {
-                const hslColor = `hsl(${TARGET_HUE}, ${currentSaturation}%, ${currentLightness}%)`;
-                root.style.setProperty('--face-color', hslColor);
-                
-                // 【关键修改】: 调整阴影参数，使其更模糊、柔和
-                const shadowOffsetY = 4 * progress; // 垂直偏移量
-                const shadowBlur = 15 + 10 * progress; // 模糊半径，从15到25
-                const shadowSpread = 0; // 扩散半径保持0或很小，防止阴影过大
-                const shadowOpacity = 0.1 + 0.2 * progress; // 透明度从0.1到0.3
+                bigCircle.classList.add('hidden');
+            }
 
-                container.style.boxShadow = `0 ${shadowOffsetY}px ${shadowBlur}px ${shadowSpread}px rgba(0, 0, 0, ${shadowOpacity})`; 
+            if (newState === 'continue') {
+                continueCircle.style.pointerEvents = 'auto';
+            } else {
+                continueCircle.style.pointerEvents = 'none';
             }
         }
 
-        // 衰减逻辑，每秒运行一次
-        function updateDecay() {
-            if (clickCount <= 0) {
-                clickCount = 0; 
-                clearInterval(decayInterval);
-                decayInterval = null;
-                updateColor(); 
-                saveState(); 
-                return;
-            }
+        /* ====== 状态逻辑 ====== */
 
-            const stepsToDecay = 1 * DECAY_RATE_PER_SEC; 
+        // 问号阶段：点击大黄圆 -> Continue 阶段
+        container.addEventListener('click', (e) => {
+            if (state !== 'question') return;
 
-            clickCount = Math.max(0, clickCount - stepsToDecay);
-            
-            updateColor();
-            saveState(); 
-        }
-
-
-        // --- 事件处理函数 ---
-        function handleClickEffect(event) {
+            e.preventDefault();
             container.classList.remove('click-shake');
-            void container.offsetWidth; 
+            void container.offsetWidth;
             container.classList.add('click-shake');
-            
-            clickCount = Math.min(MAX_CLICKS, clickCount + 1);
-            updateColor();
-            saveState(); 
-            
-            if (!decayInterval) {
-                decayInterval = setInterval(updateDecay, 1000); 
-            }
-        }
-        
-        // 统一处理五官位移和聚拢 (mousemove/touchmove)
+
+            setState('continue');
+            showTextPage(1);
+        });
+
+        // Continue 阶段：点击中间小圆 -> 进入 Yes/No 选择
+        continueCircle.addEventListener('click', (e) => {
+            if (state !== 'continue') return;
+            e.stopPropagation();
+
+            setState('choose');
+            showTextPage(2);
+        });
+
+        // Yes：进入笑脸 + Blynk
+        yesCircle.addEventListener('click', async (e) => {
+            if (state !== 'choose') return;
+            e.stopPropagation();
+
+            setState('smile');
+            showTextPage(3);
+
+            await sendCommand(PICKUP_ANGLE);
+        });
+
+        // No：只弹一句话
+        noCircle.addEventListener('click', (e) => {
+            if (state !== 'choose') return;
+            e.stopPropagation();
+
+            alert('Thanks for letting me know.');
+        });
+
+        /* ====== 跟随动效：大圆 / Continue / Yes / No ====== */
         function handleInteraction(event) {
             event.preventDefault();
 
-            container.classList.remove('click-shake');
-            
-            const clientX = event.clientX || (event.touches ? event.touches[0].clientX : event.clientX);
-            const clientY = event.clientY || (event.touches ? event.touches[0].clientY : event.clientX);
-            
+            const clientX = event.clientX || (event.touches ? event.touches[0].clientX : undefined);
+            const clientY = event.clientY || (event.touches ? event.touches[0].clientY : undefined);
             if (clientX === undefined || clientY === undefined) return;
 
-            const containerRect = container.getBoundingClientRect();
-            const containerCenterX = containerRect.left + containerRect.width / 2;
-            const containerCenterY = containerRect.top + containerRect.height / 2;
+            // ========== choose 阶段：每个按钮独立、只平移，幅度和 continue 一样 ==========
+            if (state === 'choose') {
+                [yesCircle, noCircle].forEach((btn) => {
+                    if (!btn) return;
+
+                    const rect = btn.getBoundingClientRect();
+                    const cx   = rect.left + rect.width / 2;
+                    const cy   = rect.top  + rect.height / 2;
+
+                    let dx = clientX - cx;
+                    let dy = clientY - cy;
+
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    const activeRadius = rect.width; // 鼠标接近按钮宽度以内才开始动
+
+                    // 鼠标离这个按钮太远：它就保持不动
+                    if (distance > activeRadius) {
+                        btn.style.transform = 'translate(0, 0)';
+                        return;
+                    }
+
+                    // 限制最大位移，和 continue 一致
+                    let moveX = dx;
+                    let moveY = dy;
+                    if (distance > maxDistance) {
+                        const ratio = maxDistance / distance;
+                        moveX = dx * ratio;
+                        moveY = dy * ratio;
+                    }
+
+                    // 只做轻微反方向平移（和 continue 一样，不挤压）
+                    const offsetX = moveX * -faceShiftRatio;
+                    const offsetY = moveY * -faceShiftRatio;
+                    btn.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+                });
+
+                // choose 阶段不再动大容器和五官
+                container.style.transform = 'translate(0, 0)';
+                wrapper.style.transform   = 'translate(0, 0)';
+                container.classList.remove('click-shake');
+                return;
+            }
+
+            // ========== 其他阶段（question / continue / smile）：保持原来的整体挤压 ==========
+            container.classList.remove('click-shake');
             
-            let dx = clientX - containerCenterX;
-            let dy = clientY - containerCenterY;
+            const rect = container.getBoundingClientRect();
+            const cx   = rect.left + rect.width / 2;
+            const cy   = rect.top  + rect.height / 2;
+            
+            let dx = clientX - cx;
+            let dy = clientY - cy;
 
             const distance = Math.sqrt(dx * dx + dy * dy);
             let moveX = dx;
@@ -253,80 +552,42 @@
 
             const faceMoveX = moveX * -faceShiftRatio; 
             const faceMoveY = moveY * -faceShiftRatio; 
-            
             container.style.transform = `translate(${faceMoveX}px, ${faceMoveY}px)`;
             
-            
-            const maxAbsMove = Math.max(Math.abs(moveX), Math.abs(moveY)); 
-            
             let scaleX = 1;
-            if (Math.abs(moveX) > Math.abs(moveY)) {
-                const horizontalRatio = Math.abs(moveX) / maxDistance;
-                scaleX = 1 - (1 - maxSqueezeScale) * horizontalRatio; 
-            } else if (Math.abs(moveY) > 0.01) {
-                const verticalRatio = Math.abs(moveY) / maxDistance;
-                scaleX = 1 + (maxStretchScale - 1) * verticalRatio;
-            }
-
             let scaleY = 1;
-            if (Math.abs(moveY) > Math.abs(moveX)) {
-                const verticalRatio = Math.abs(moveY) / maxDistance;
-                scaleY = 1 - (1 - maxSqueezeScale) * verticalRatio; 
-            } else if (Math.abs(moveX) > 0.01) {
-                const horizontalRatio = Math.abs(moveX) / maxDistance;
-                scaleY = 1 + (maxStretchScale - 1) * horizontalRatio;
-            }
             
-            wrapper.style.transform = `translate(${moveX}px, ${moveY}px) scaleX(${scaleX}) scaleY(${scaleY})`;
+            if (Math.abs(moveX) > Math.abs(moveY)) {
+                const hRatio = Math.abs(moveX) / maxDistance;
+                scaleX = 1 - (1 - maxSqueezeScale) * hRatio; 
+                scaleY = 1 + (maxStretchScale - 1) * hRatio;
+            } else if (Math.abs(moveY) > Math.abs(moveX)) {
+                const vRatio = Math.abs(moveY) / maxDistance;
+                scaleY = 1 - (1 - maxSqueezeScale) * vRatio; 
+                scaleX = 1 + (maxStretchScale - 1) * vRatio;
+            }
+
+            wrapper.style.transform =
+                `translate(${moveX}px, ${moveY}px) scaleX(${scaleX}) scaleY(${scaleY})`;
         }
 
-        // --- 复位函数 ---
         function resetPosition() {
-             wrapper.style.transform = 'translate(0, 0) scaleX(1) scaleY(1)';
-             container.style.transform = 'translate(0, 0)';
-             container.classList.remove('click-shake');
+            wrapper.style.transform   = 'translate(0, 0) scaleX(1) scaleY(1)';
+            container.style.transform = 'translate(0, 0)';
+            container.classList.remove('click-shake');
+
+            // 确保 Yes / No 也回到正常
+            yesCircle.style.transform = 'translate(0, 0)';
+            noCircle.style.transform  = 'translate(0, 0)';
         }
 
-        // --- 状态初始化逻辑（网页加载时执行） ---
-        function initializeState() {
-            const savedCount = localStorage.getItem('emojiClickCount');
-            const lastUpdate = localStorage.getItem('emojiLastUpdateTime');
-            const currentTime = Date.now();
-
-            if (savedCount && lastUpdate) {
-                let initialCount = parseFloat(savedCount);
-                const elapsedMs = currentTime - parseInt(lastUpdate);
-                const elapsedSec = elapsedMs / 1000;
-
-                const decayAmount = elapsedSec * DECAY_RATE_PER_SEC;
-                
-                clickCount = Math.max(0, initialCount - decayAmount);
-            } else {
-                clickCount = 0;
-            }
-
-            updateColor(); 
-
-            if (clickCount > 0) {
-                decayInterval = setInterval(updateDecay, 1000); 
-            }
-        }
-
-        // --- 启动 ---
-        initializeState(); 
-
-        // 绑定事件：
         document.addEventListener('mousemove', handleInteraction);
-        document.addEventListener('touchmove', handleInteraction);
-        
-        container.addEventListener('click', handleClickEffect);
-        container.addEventListener('touchstart', handleClickEffect); 
+        document.addEventListener('touchmove', handleInteraction, { passive: false });
 
         document.addEventListener('mouseup', resetPosition);
         document.addEventListener('touchend', resetPosition);
         document.addEventListener('touchcancel', resetPosition);
         container.addEventListener('contextmenu', (e) => e.preventDefault()); 
-
     </script>
 </body>
 </html>
