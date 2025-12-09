@@ -1,63 +1,68 @@
-// --- 替换为您的密钥信息 ---
-const AUTH_TOKEN = 'OqSFS2EppKQRi0DYBOTFNEQgW7pljRjT'; 
+// --- Yellow Sticker: 发 120° 指令 ---
 
-// Blynk 的服务器地址
-const BLYNK_HOST = 'blynk.cloud'; 
-// 您在 ESP32 代码中设置的虚拟引脚
-const VIRTUAL_PIN = 'v1'; 
-// 舵机转到最大角度（拾取）
+// 你的 Blynk 密钥
+const AUTH_TOKEN = 'OqSFS2EppKQRi0DYBOTFNEQgW7pljRjT';
+
+// Blynk 云端服务器
+const BLYNK_HOST = 'blynk.cloud';
+
+// ESP32 程序中对应的虚拟引脚
+const VIRTUAL_PIN = 'v1';
+
+// Yellow 贴纸动作角度（=120°）
 const PICKUP_ANGLE = 120;
-// 舵机返回初始角度（重置云端状态）
-const RETURN_ANGLE = 0; // 必须重新定义并使用！
+
+// 推送后立即把云端恢复成 0
+const RETURN_ANGLE = 0;
 
 
 /**
- * 构造并发送 HTTP GET 请求到 Blynk API，并立即重置云端状态
- * @param {number} value 要设置的舵机角度 (应为 90)
- */
-async function sendCommand(value) { // *** 必须添加 async 关键字 ***
-    // 构造 PUSH URL (发送 90 度)
-    const url_push = `https://${BLYNK_HOST}/external/api/update?token=${AUTH_TOKEN}&${VIRTUAL_PIN}=${value}`;
-    
-    // 构造 RESET URL (发送 0 度，重置云端状态)
+ * 发送指令给 Blynk：先发 120°，再重置回 0°
+ * @param {number} value - 要推送的角度
+ */
+async function sendCommand(value) {
+
+    // 构造两个 URL
+    const url_push  = `https://${BLYNK_HOST}/external/api/update?token=${AUTH_TOKEN}&${VIRTUAL_PIN}=${value}`;
     const url_reset = `https://${BLYNK_HOST}/external/api/update?token=${AUTH_TOKEN}&${VIRTUAL_PIN}=${RETURN_ANGLE}`;
 
     document.getElementById('status').innerText = `Status: Sending ${value} degrees...`;
 
     try {
-        // 1. 发送 PUSH 命令 (90度)
+        // Step 1: 推送 120°
         let response_push = await fetch(url_push);
-        
-        if (!response_push.ok) {
-            document.getElementById('status').innerText = `Status: PUSH Failed! (Code: ${response_push.status})`;
-            console.error('PUSH API request failed:', response_push.statusText);
-            return; 
-        }
-        document.getElementById('status').innerText = `Status: PUSH Success. Resetting cloud...`;
 
-        // 2. 发送 RESET 命令 (0度) 以重置云端 V1 状态
+        if (!response_push.ok) {
+            document.getElementById('status').innerText =
+                `Status: PUSH Failed (Code ${response_push.status})`;
+            console.error('PUSH API error:', response_push.statusText);
+            return;
+        }
+
+        document.getElementById('status').innerText =
+            `Status: PUSH Success. Resetting cloud...`;
+
+        // Step 2: 重置为 0°
         let response_reset = await fetch(url_reset);
 
         if (response_reset.ok) {
-            document.getElementById('status').innerText = `Status: Command ${value}° Sent & Cloud Reset Successfully!`;
-            console.log(`Command ${value} sent, and cloud state successfully reset to 0.`);
+            document.getElementById('status').innerText =
+                `Status: Command ${value}° sent & cloud reset to 0.`;
+            console.log(`Command ${value} sent, then reset to 0.`);
         } else {
-             document.getElementById('status').innerText = `Status: PUSH Success, but RESET Failed! (Code: ${response_reset.status})`;
-            console.error('RESET API request failed:', response_reset.statusText);
+            document.getElementById('status').innerText =
+                `Status: PUSH Success but RESET Failed (Code ${response_reset.status})`;
+            console.error('RESET API error:', response_reset.statusText);
         }
 
     } catch (error) {
-        document.getElementById('status').innerText = `Status: Network Error! Could not reach Blynk.`;
+        document.getElementById('status').innerText = `Status: Network Error`;
         console.error('Network error:', error);
     }
 }
 
 
-// --- 事件监听器：绑定点击事件 ---
-
-// 1. "I pick it up" 按钮：发送 90 度指令
+// --- 绑定 Yellow 按钮事件 ---
 document.getElementById('pickUpButton').addEventListener('click', () => {
-    sendCommand(PICKUP_ANGLE); 
+    sendCommand(PICKUP_ANGLE);    // 这里发的就是 120°
 });
-
-// 2. !!! 保持移除 "Return" 按钮的监听器 !!!
