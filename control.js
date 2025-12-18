@@ -1,10 +1,10 @@
-// ===== 强制兜底版：点击一次只发送一次（交替 120 / 0）=====
+// ===== 最简稳定版：每次点击只发送 120（不发送 0）=====
 
 const container = document.getElementById('emojiContainer');
 const wrapper   = document.getElementById('featuresWrapper');
 const root      = document.documentElement;
 
-// ------- 颜色相关（保留你原本逻辑） -------
+// ----------------- 颜色与状态（黄色） -----------------
 const TARGET_HUE        = 55;
 const TARGET_SATURATION = 100;
 const TARGET_LIGHTNESS  = 70;
@@ -16,20 +16,15 @@ const DECAY_RATE_PER_SEC = MAX_CLICKS / DECAY_DURATION_SEC;
 let clickCount = 0;
 let decayInterval = null;
 
-// ------- Blynk -------
+// ----------------- Blynk 配置：永远发 120 -----------------
 const AUTH_TOKEN  = 'OqSFS2EppKQRi0DYBOTFNEQgW7pljRjT';
 const BLYNK_HOST  = 'blynk.cloud';
 const VIRTUAL_PIN = 'V1';
+const ANGLE_ALWAYS = 120;
 
-const ANGLE_ON  = 120;
-const ANGLE_OFF = 0;
-
-// ------- toggle 状态 -------
-let isExtended = false;
-
-// ✅ 超强防双触发：锁 1 秒（你现在问题是“一下立刻两次”，这个能硬挡）
+// ----------------- 防止一次交互触发两次 -----------------
 let lockUntilMs = 0;
-const LOCK_MS = 1000;
+const LOCK_MS = 600; // 防抖窗口
 
 // 从 CSS 读取交互参数
 const maxDistance     = parseFloat(getComputedStyle(root).getPropertyValue('--max-move-distance')) || 30;
@@ -37,12 +32,12 @@ const maxSqueezeScale = parseFloat(getComputedStyle(root).getPropertyValue('--ma
 const maxStretchScale = parseFloat(getComputedStyle(root).getPropertyValue('--max-stretch-scale')) || 1.05;
 const faceShiftRatio  = parseFloat(getComputedStyle(root).getPropertyValue('--face-shift-ratio')) || 0.15;
 
-// ✅ 关键：让触摸不再合成 click（配合下面吞事件更稳）
+// 让触摸不再合成 click（更稳）
 container.style.touchAction = 'none';
 
-async function sendCommand(value) {
-  const url = `https://${BLYNK_HOST}/external/api/update?token=${AUTH_TOKEN}&${VIRTUAL_PIN}=${value}`;
-  console.log('[Blynk] sending', value, 'url=', url);
+async function send120() {
+  const url = `https://${BLYNK_HOST}/external/api/update?token=${AUTH_TOKEN}&${VIRTUAL_PIN}=${ANGLE_ALWAYS}`;
+  console.log('[Blynk] send 120 ->', url);
 
   try {
     const res = await fetch(url);
@@ -52,7 +47,7 @@ async function sendCommand(value) {
   }
 }
 
-// ------- 颜色记忆 -------
+// ----------------- 颜色记忆 -----------------
 function saveState() {
   localStorage.setItem('emojiClickCount', clickCount);
   localStorage.setItem('emojiLastUpdateTime', Date.now());
@@ -94,16 +89,13 @@ function updateDecay() {
   saveState();
 }
 
-// ✅ 真正的触发逻辑：一次交互只走一次
-function triggerToggleOnce() {
+// ----------------- ✅ 点击效果：只发送 120 -----------------
+function triggerOnceSend120() {
   const now = Date.now();
-  if (now < lockUntilMs) {
-    console.log('[Guard] blocked duplicate trigger');
-    return;
-  }
+  if (now < lockUntilMs) return;
   lockUntilMs = now + LOCK_MS;
 
-  // 视觉反馈
+  // 点击抖动
   container.classList.remove('click-shake');
   void container.offsetWidth;
   container.classList.add('click-shake');
@@ -113,32 +105,28 @@ function triggerToggleOnce() {
   updateColor();
   saveState();
 
-  // toggle：1次120，2次0，3次120...
-  const valueToSend = isExtended ? ANGLE_OFF : ANGLE_ON;
-  console.log('>>> trigger -> send', valueToSend);
-  sendCommand(valueToSend);
-
-  isExtended = !isExtended;
+  // ✅ 永远只发 120
+  send120();
 
   if (!decayInterval) decayInterval = setInterval(updateDecay, 1000);
 }
 
-// ✅ 只用 pointerdown
+// 用 pointerdown 统一 mouse/touch/pen
 function onPointerDown(e) {
   e.preventDefault();
   e.stopPropagation();
   e.stopImmediatePropagation();
-  triggerToggleOnce();
+  triggerOnceSend120();
 }
 
-// ✅ 兜底：把 click / touchstart 事件吞掉（防止页面里残留旧监听器）
+// 兜底：吞掉 click/touchstart，防止页面里残留旧监听器
 function swallow(e) {
   e.preventDefault();
   e.stopPropagation();
   e.stopImmediatePropagation();
 }
 
-// ------- 跟随移动（保留） -------
+// ----------------- 跟随移动（保留） -----------------
 function handleInteraction(event) {
   event.preventDefault();
 
@@ -184,6 +172,7 @@ function resetPosition() {
   container.classList.remove('click-shake');
 }
 
+// ----------------- 初始化 -----------------
 function initializeState() {
   const savedCount = localStorage.getItem('emojiClickCount');
   const lastUpdate = localStorage.getItem('emojiLastUpdateTime');
@@ -201,14 +190,14 @@ function initializeState() {
   if (clickCount > 0) decayInterval = setInterval(updateDecay, 1000);
 }
 
-// --- 启动 ---
 initializeState();
 
-// ✅ 绑定：吞掉 click/touchstart（capture=true），并只用 pointerdown 触发
+// ✅ 绑定：吞掉 click/touchstart（capture），只用 pointerdown 触发
 container.addEventListener('click', swallow, true);
 container.addEventListener('touchstart', swallow, { passive: false, capture: true });
 container.addEventListener('pointerdown', onPointerDown, { passive: false });
 
+// 其他交互保持
 document.addEventListener('mousemove', handleInteraction, { passive: false });
 document.addEventListener('touchmove', handleInteraction, { passive: false });
 
