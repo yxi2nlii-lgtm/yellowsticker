@@ -1,10 +1,10 @@
-// ===== Yellow Sticker: 点击表情「交替」发送 120 / 0（防止一次点击触发两次）=====
+// ===== 强制兜底版：点击一次只发送一次（交替 120 / 0）=====
 
 const container = document.getElementById('emojiContainer');
 const wrapper   = document.getElementById('featuresWrapper');
 const root      = document.documentElement;
 
-// ===================== 颜色与状态（黄色） =====================
+// ------- 颜色相关（保留你原本逻辑） -------
 const TARGET_HUE        = 55;
 const TARGET_SATURATION = 100;
 const TARGET_LIGHTNESS  = 70;
@@ -16,20 +16,7 @@ const DECAY_RATE_PER_SEC = MAX_CLICKS / DECAY_DURATION_SEC;
 let clickCount = 0;
 let decayInterval = null;
 
-// ✅ toggle 状态：false -> 下一次发120；true -> 下一次发0
-let isExtended = false;
-
-// ✅ 防止一次交互触发两次（合成 click / pointer 之类）
-let lastTriggerMs = 0;
-const TRIGGER_GUARD_MS = 250;
-
-// 从 CSS 读取交互参数
-const maxDistance     = parseFloat(getComputedStyle(root).getPropertyValue('--max-move-distance')) || 30;
-const maxSqueezeScale = parseFloat(getComputedStyle(root).getPropertyValue('--max-squeeze-scale')) || 0.90;
-const maxStretchScale = parseFloat(getComputedStyle(root).getPropertyValue('--max-stretch-scale')) || 1.05;
-const faceShiftRatio  = parseFloat(getComputedStyle(root).getPropertyValue('--face-shift-ratio')) || 0.15;
-
-// ===================== Blynk 配置（每次点击只发一个值：120 或 0） =====================
+// ------- Blynk -------
 const AUTH_TOKEN  = 'OqSFS2EppKQRi0DYBOTFNEQgW7pljRjT';
 const BLYNK_HOST  = 'blynk.cloud';
 const VIRTUAL_PIN = 'V1';
@@ -37,9 +24,25 @@ const VIRTUAL_PIN = 'V1';
 const ANGLE_ON  = 120;
 const ANGLE_OFF = 0;
 
+// ------- toggle 状态 -------
+let isExtended = false;
+
+// ✅ 超强防双触发：锁 1 秒（你现在问题是“一下立刻两次”，这个能硬挡）
+let lockUntilMs = 0;
+const LOCK_MS = 1000;
+
+// 从 CSS 读取交互参数
+const maxDistance     = parseFloat(getComputedStyle(root).getPropertyValue('--max-move-distance')) || 30;
+const maxSqueezeScale = parseFloat(getComputedStyle(root).getPropertyValue('--max-squeeze-scale')) || 0.90;
+const maxStretchScale = parseFloat(getComputedStyle(root).getPropertyValue('--max-stretch-scale')) || 1.05;
+const faceShiftRatio  = parseFloat(getComputedStyle(root).getPropertyValue('--face-shift-ratio')) || 0.15;
+
+// ✅ 关键：让触摸不再合成 click（配合下面吞事件更稳）
+container.style.touchAction = 'none';
+
 async function sendCommand(value) {
   const url = `https://${BLYNK_HOST}/external/api/update?token=${AUTH_TOKEN}&${VIRTUAL_PIN}=${value}`;
-  console.log('[Blynk] sending', value);
+  console.log('[Blynk] sending', value, 'url=', url);
 
   try {
     const res = await fetch(url);
@@ -49,7 +52,7 @@ async function sendCommand(value) {
   }
 }
 
-// ===================== 状态存储（颜色记忆） =====================
+// ------- 颜色记忆 -------
 function saveState() {
   localStorage.setItem('emojiClickCount', clickCount);
   localStorage.setItem('emojiLastUpdateTime', Date.now());
@@ -86,18 +89,21 @@ function updateDecay() {
     return;
   }
 
-  const stepsToDecay = 1 * DECAY_RATE_PER_SEC;
-  clickCount = Math.max(0, clickCount - stepsToDecay);
+  clickCount = Math.max(0, clickCount - (1 * DECAY_RATE_PER_SEC));
   updateColor();
   saveState();
 }
 
-// ===================== ✅ 点击：交替发送 120 / 0（只触发一次） =====================
-function triggerOnce() {
+// ✅ 真正的触发逻辑：一次交互只走一次
+function triggerToggleOnce() {
   const now = Date.now();
-  if (now - lastTriggerMs < TRIGGER_GUARD_MS) return; // 防抖：挡掉“同一次交互”的第二次触发
-  lastTriggerMs = now;
+  if (now < lockUntilMs) {
+    console.log('[Guard] blocked duplicate trigger');
+    return;
+  }
+  lockUntilMs = now + LOCK_MS;
 
+  // 视觉反馈
   container.classList.remove('click-shake');
   void container.offsetWidth;
   container.classList.add('click-shake');
@@ -107,26 +113,34 @@ function triggerOnce() {
   updateColor();
   saveState();
 
-  // toggle 发送
-  const valueToSend = isExtended ? ANGLE_OFF : ANGLE_ON; // false->120, true->0
-  sendCommand(valueToSend);
+  // toggle：1次120，2次0，3次120...
+  const valueToSend = isExtended ? ANGLE_OFF : ANGLE_ON;
   console.log('>>> trigger -> send', valueToSend);
+  sendCommand(valueToSend);
 
   isExtended = !isExtended;
 
   if (!decayInterval) decayInterval = setInterval(updateDecay, 1000);
 }
 
-// 用 pointerdown 统一 mouse / touch / pen，避免 touch+click 双触发
+// ✅ 只用 pointerdown
 function onPointerDown(e) {
   e.preventDefault();
-  triggerOnce();
+  e.stopPropagation();
+  e.stopImmediatePropagation();
+  triggerToggleOnce();
 }
 
-// ===================== 跟随移动（表情跟手） =====================
+// ✅ 兜底：把 click / touchstart 事件吞掉（防止页面里残留旧监听器）
+function swallow(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  e.stopImmediatePropagation();
+}
+
+// ------- 跟随移动（保留） -------
 function handleInteraction(event) {
   event.preventDefault();
-  container.classList.remove('click-shake');
 
   const clientX = event.clientX || (event.touches ? event.touches[0].clientX : undefined);
   const clientY = event.clientY || (event.touches ? event.touches[0].clientY : undefined);
@@ -170,7 +184,6 @@ function resetPosition() {
   container.classList.remove('click-shake');
 }
 
-// ===================== 初始化（颜色记忆 + 衰减） =====================
 function initializeState() {
   const savedCount = localStorage.getItem('emojiClickCount');
   const lastUpdate = localStorage.getItem('emojiLastUpdateTime');
@@ -191,11 +204,11 @@ function initializeState() {
 // --- 启动 ---
 initializeState();
 
-// --- 绑定事件 ---
-// ✅ 关键：只绑定 pointerdown（不要再绑 click/touchstart）
+// ✅ 绑定：吞掉 click/touchstart（capture=true），并只用 pointerdown 触发
+container.addEventListener('click', swallow, true);
+container.addEventListener('touchstart', swallow, { passive: false, capture: true });
 container.addEventListener('pointerdown', onPointerDown, { passive: false });
 
-// 其他交互保持
 document.addEventListener('mousemove', handleInteraction, { passive: false });
 document.addEventListener('touchmove', handleInteraction, { passive: false });
 
