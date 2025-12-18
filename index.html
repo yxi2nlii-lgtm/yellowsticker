@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>动态表情 - 黄色（点击发送120°）</title>
+  <title>动态表情 - 黄色（点击交替发送 120/0）</title>
   <style>
     :root {
       --line-thickness: 10px;
@@ -48,6 +48,7 @@
       overflow: hidden;
       user-select: none;
       -webkit-tap-highlight-color: transparent;
+      touch-action: none; /* ✅ 防止触摸合成 click */
     }
 
     .features-wrapper {
@@ -118,7 +119,6 @@
 </head>
 
 <body>
-  <!-- ✅ 交互输入：点击这个圆脸 -->
   <div class="emoji-container" id="emojiContainer" aria-label="yellow emoji">
     <div class="features-wrapper" id="featuresWrapper">
       <div class="eye left-eye"></div>
@@ -133,7 +133,7 @@
     const root      = document.documentElement;
 
     // ===================== 颜色与状态（黄色） =====================
-    const TARGET_HUE        = 55;   // 🟡 黄色
+    const TARGET_HUE        = 55;
     const TARGET_SATURATION = 100;
     const TARGET_LIGHTNESS  = 70;
 
@@ -145,40 +145,33 @@
     let decayInterval = null;
 
     // 从 CSS 读取交互参数
-    const maxDistance      = parseFloat(getComputedStyle(root).getPropertyValue('--max-move-distance')) || 30;
-    const maxSqueezeScale  = parseFloat(getComputedStyle(root).getPropertyValue('--max-squeeze-scale')) || 0.90;
-    const maxStretchScale  = parseFloat(getComputedStyle(root).getPropertyValue('--max-stretch-scale')) || 1.05;
-    const faceShiftRatio   = parseFloat(getComputedStyle(root).getPropertyValue('--face-shift-ratio')) || 0.15;
+    const maxDistance     = parseFloat(getComputedStyle(root).getPropertyValue('--max-move-distance')) || 30;
+    const maxSqueezeScale = parseFloat(getComputedStyle(root).getPropertyValue('--max-squeeze-scale')) || 0.90;
+    const maxStretchScale = parseFloat(getComputedStyle(root).getPropertyValue('--max-stretch-scale')) || 1.05;
+    const faceShiftRatio  = parseFloat(getComputedStyle(root).getPropertyValue('--face-shift-ratio')) || 0.15;
 
-    // ===================== Blynk 配置（每次点击发送 120°） =====================
-    const AUTH_TOKEN   = 'OqSFS2EppKQRi0DYBOTFNEQgW7pljRjT';
-    const BLYNK_HOST   = 'blynk.cloud';
-    const VIRTUAL_PIN  = 'V1';
+    // ===================== Blynk 配置 =====================
+    const AUTH_TOKEN  = 'OqSFS2EppKQRi0DYBOTFNEQgW7pljRjT';
+    const BLYNK_HOST  = 'blynk.cloud';
+    const VIRTUAL_PIN = 'V1';
 
-    const PICKUP_ANGLE = 120; // ✅ 你要的输出：120
-    const RETURN_ANGLE = 0;   // 发送后复位为 0（用于“脉冲”触发）
+    const ANGLE_ON  = 120; // 第 1/3/5... 次
+    const ANGLE_OFF = 0;   // 第 2/4/6... 次
+
+    // ✅ 交替状态：false -> 下次发120；true -> 下次发0
+    let isExtended = false;
+
+    // ✅ 防止一次交互触发两次（比如 pointerdown + 合成 click）
+    let lastTriggerMs = 0;
+    const TRIGGER_GUARD_MS = 300;
 
     async function sendCommand(value) {
-      const urlPush  = `https://${BLYNK_HOST}/external/api/update?token=${AUTH_TOKEN}&${VIRTUAL_PIN}=${value}`;
-      const urlReset = `https://${BLYNK_HOST}/external/api/update?token=${AUTH_TOKEN}&${VIRTUAL_PIN}=${RETURN_ANGLE}`;
-
+      const url = `https://${BLYNK_HOST}/external/api/update?token=${AUTH_TOKEN}&${VIRTUAL_PIN}=${value}`;
       console.log('[Blynk] sending', value);
 
       try {
-        // Step 1: PUSH 120
-        const r1 = await fetch(urlPush);
-        if (!r1.ok) {
-          console.error('[Blynk] PUSH failed', r1.status);
-          return;
-        }
-
-        // Step 2: RESET 0（让下一次点击仍然能触发）
-        const r2 = await fetch(urlReset);
-        if (!r2.ok) {
-          console.error('[Blynk] RESET failed', r2.status);
-        } else {
-          console.log('[Blynk] done, reset to 0');
-        }
+        const r = await fetch(url);
+        if (!r.ok) console.error('[Blynk] failed', r.status);
       } catch (e) {
         console.error('[Blynk] network error', e);
       }
@@ -191,7 +184,7 @@
     }
 
     function updateColor() {
-      const progress = clickCount / MAX_CLICKS; // 0..1
+      const progress = clickCount / MAX_CLICKS;
 
       const currentSaturation = Math.round(TARGET_SATURATION * progress);
       const currentLightness  = Math.round(100 - (100 - TARGET_LIGHTNESS) * progress);
@@ -221,15 +214,18 @@
         return;
       }
 
-      const stepsToDecay = 1 * DECAY_RATE_PER_SEC;
-      clickCount = Math.max(0, clickCount - stepsToDecay);
-
+      clickCount = Math.max(0, clickCount - (1 * DECAY_RATE_PER_SEC));
       updateColor();
       saveState();
     }
 
-    // ===================== ✅ 点击：每次都发送 120° =====================
-    function handleClickEffect() {
+    // ===================== ✅ 点击：交替发送 120 / 0 =====================
+    function triggerToggleOnce() {
+      const now = Date.now();
+      if (now - lastTriggerMs < TRIGGER_GUARD_MS) return;
+      lastTriggerMs = now;
+
+      // 点击抖动
       container.classList.remove('click-shake');
       void container.offsetWidth;
       container.classList.add('click-shake');
@@ -239,12 +235,29 @@
       updateColor();
       saveState();
 
-      // ✅ 每点击一下：输出 120
-      sendCommand(PICKUP_ANGLE);
+      // 交替发送
+      const valueToSend = isExtended ? ANGLE_OFF : ANGLE_ON; // false->120, true->0
+      sendCommand(valueToSend);
 
-      if (!decayInterval) {
-        decayInterval = setInterval(updateDecay, 1000);
-      }
+      // 翻转状态
+      isExtended = !isExtended;
+
+      if (!decayInterval) decayInterval = setInterval(updateDecay, 1000);
+    }
+
+    // ✅ 只用 pointerdown 触发
+    function onPointerDown(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      triggerToggleOnce();
+    }
+
+    // ✅ 吞掉 click/touchstart，防止合成事件/旧监听器造成双触发
+    function swallow(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
     }
 
     // ===================== 跟随移动（表情跟手） =====================
@@ -314,8 +327,7 @@
       if (savedCount && lastUpdate) {
         const initialCount = parseFloat(savedCount);
         const elapsedSec = (now - parseInt(lastUpdate, 10)) / 1000;
-        const decayAmount = elapsedSec * DECAY_RATE_PER_SEC;
-        clickCount = Math.max(0, initialCount - decayAmount);
+        clickCount = Math.max(0, initialCount - elapsedSec * DECAY_RATE_PER_SEC);
       } else {
         clickCount = 0;
       }
@@ -331,16 +343,23 @@
     initializeState();
 
     // --- 绑定事件 ---
+    // ✅ 吞掉 click/touchstart（capture=true）
+    container.addEventListener('click', swallow, true);
+    container.addEventListener('touchstart', swallow, { passive: false, capture: true });
+
+    // ✅ 唯一触发：pointerdown
+    container.addEventListener('pointerdown', onPointerDown, { passive: false });
+
+    // 跟随移动
     document.addEventListener('mousemove', handleInteraction, { passive: false });
     document.addEventListener('touchmove', handleInteraction, { passive: false });
 
-    container.addEventListener('click', handleClickEffect);
-    container.addEventListener('touchstart', (e) => { e.preventDefault(); handleClickEffect(); }, { passive: false });
-
+    // 复位
     document.addEventListener('mouseup', resetPosition);
     document.addEventListener('touchend', resetPosition);
     document.addEventListener('touchcancel', resetPosition);
 
+    // 禁用右键菜单
     container.addEventListener('contextmenu', (e) => e.preventDefault());
   </script>
 </body>
