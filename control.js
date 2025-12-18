@@ -1,4 +1,4 @@
-// ===== Yellow Sticker: 点击表情发送 120°（并重置回 0） =====
+// ===== Yellow Sticker: 点击表情「交替」发送 120 / 0（不再自动 reset）=====
 
 // 交互输入：点击这个元素（HTML 里必须有 id="emojiContainer"）
 const container = document.getElementById('emojiContainer');
@@ -17,40 +17,34 @@ const DECAY_RATE_PER_SEC = MAX_CLICKS / DECAY_DURATION_SEC;
 let clickCount = 0;
 let decayInterval = null;
 
+// ✅ 新增：点击交替输出状态
+// false -> 下一次发 120
+// true  -> 下一次发 0
+let isExtended = false;
+
 // 从 CSS 读取交互参数
 const maxDistance     = parseFloat(getComputedStyle(root).getPropertyValue('--max-move-distance')) || 30;
 const maxSqueezeScale = parseFloat(getComputedStyle(root).getPropertyValue('--max-squeeze-scale')) || 0.90;
 const maxStretchScale = parseFloat(getComputedStyle(root).getPropertyValue('--max-stretch-scale')) || 1.05;
 const faceShiftRatio  = parseFloat(getComputedStyle(root).getPropertyValue('--face-shift-ratio')) || 0.15;
 
-// ===================== Blynk 配置（每次点击发送 120°） =====================
-const AUTH_TOKEN   = 'OqSFS2EppKQRi0DYBOTFNEQgW7pljRjT';
-const BLYNK_HOST   = 'blynk.cloud';
-const VIRTUAL_PIN  = 'V1';
+// ===================== Blynk 配置（每次点击只发一个值：120 或 0） =====================
+const AUTH_TOKEN  = 'OqSFS2EppKQRi0DYBOTFNEQgW7pljRjT';
+const BLYNK_HOST  = 'blynk.cloud';
+const VIRTUAL_PIN = 'V1';
 
-const PICKUP_ANGLE = 120; // ✅ 每点击一下输出 120
-const RETURN_ANGLE = 0;   // 发送后复位为 0（脉冲触发）
+const ANGLE_ON  = 120; // 第 1/3/5... 次点击发送
+const ANGLE_OFF = 0;   // 第 2/4/6... 次点击发送
 
 async function sendCommand(value) {
-  const urlPush  = `https://${BLYNK_HOST}/external/api/update?token=${AUTH_TOKEN}&${VIRTUAL_PIN}=${value}`;
-  const urlReset = `https://${BLYNK_HOST}/external/api/update?token=${AUTH_TOKEN}&${VIRTUAL_PIN}=${RETURN_ANGLE}`;
+  const url = `https://${BLYNK_HOST}/external/api/update?token=${AUTH_TOKEN}&${VIRTUAL_PIN}=${value}`;
 
   console.log('[Blynk] sending', value);
 
   try {
-    // Step 1: PUSH 120
-    const r1 = await fetch(urlPush);
-    if (!r1.ok) {
-      console.error('[Blynk] PUSH failed', r1.status);
-      return;
-    }
-
-    // Step 2: RESET 0（让下一次点击仍能触发）
-    const r2 = await fetch(urlReset);
-    if (!r2.ok) {
-      console.error('[Blynk] RESET failed', r2.status);
-    } else {
-      console.log('[Blynk] done, reset to 0');
+    const res = await fetch(url);
+    if (!res.ok) {
+      console.error('[Blynk] failed', res.status);
     }
   } catch (e) {
     console.error('[Blynk] network error', e);
@@ -101,20 +95,28 @@ function updateDecay() {
   saveState();
 }
 
-// ===================== ✅ 点击：每次都发送 120° =====================
+// ===================== ✅ 点击：交替发送 120 / 0 =====================
 function handleClickEffect() {
+  // 点击轻微抖动
   container.classList.remove('click-shake');
   void container.offsetWidth;
   container.classList.add('click-shake');
 
-  // 颜色记忆
+  // 颜色记忆（保持你原来的逻辑）
   clickCount = Math.min(MAX_CLICKS, clickCount + 1);
   updateColor();
   saveState();
 
-  // ✅ 每点击一下：输出 120
-  sendCommand(PICKUP_ANGLE);
+  // ✅ 交替输出
+  const valueToSend = isExtended ? ANGLE_OFF : ANGLE_ON; // false->120, true->0
+  sendCommand(valueToSend);
 
+  console.log('>>> click -> send', valueToSend);
+
+  // 翻转状态：下次发相反的
+  isExtended = !isExtended;
+
+  // 开启衰减计时
   if (!decayInterval) {
     decayInterval = setInterval(updateDecay, 1000);
   }
